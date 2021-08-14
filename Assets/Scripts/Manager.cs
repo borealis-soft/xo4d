@@ -108,7 +108,7 @@ public class Manager : MonoBehaviour
 		return targetField;
 	}
 
-	private void SwapPlayer()
+	public void SwapPlayer()
 	{
 		CurrentPlayer = CurrentPlayer == CellState.PlayerCross ? CellState.PlayerZero : CellState.PlayerCross;
 		textInfo.text = "Ходит: Игрок " + (CurrentPlayer == CellState.PlayerCross ? "X" : "O");
@@ -118,8 +118,8 @@ public class Manager : MonoBehaviour
 	{
 		foreach (var line in winningIndices)
 		{
-			if (fields[line[0]].GameState == GameState.Playing) continue;
-			if (fields[line[0]].GameState == fields[line[1]].GameState && fields[line[1]].GameState == fields[line[2]].GameState)// ничья если 3 ничьи в ряд
+			if (fields[line[0]].GameState == GameState.Playing || fields[line[0]].GameState == GameState.Draw) continue;
+			if (fields[line[0]].GameState == fields[line[1]].GameState && fields[line[1]].GameState == fields[line[2]].GameState)
 			{
 				GlobalGameState = fields[line[0]].GameState;
 				return;
