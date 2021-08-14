@@ -36,7 +36,7 @@ public class Cell : MonoBehaviour
 			case CellState.Zero:  Instantiate(zeroPrefab,  transform.position, Quaternion.identity); break;
 			default: Debug.Assert(false); break;
 		}
-		Manager.Instance.MakeMove(x + 1, y + 1);
+		Manager.Instance.MakeMove(x + 1, 1 - y));
 		*/
 		switch (Random.Range(0, 2))
 		{
