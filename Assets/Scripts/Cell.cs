@@ -26,26 +26,18 @@ public class Cell : MonoBehaviour
 	}
 	private void OnMouseUp()
 	{
-		if (hasMoved)
-			return;
+		if (hasMoved) return;
 
-		/*
-		switch (Manager.CurrentPlayer)
-		{
-			case CellState.Cross: Instantiate(crossPrefab, transform.position, Quaternion.identity); break;
-			case CellState.Zero:  Instantiate(zeroPrefab,  transform.position, Quaternion.identity); break;
-			default: Debug.Assert(false); break;
-		}
-		Manager.Instance.MakeMove(x + 1, 1 - y));
-		*/
-		switch (Random.Range(0, 2))
-		{
-			case 0: Instantiate(crossPrefab, transform.position, Quaternion.identity); break;
-			case 1: Instantiate(zeroPrefab, transform.position, Quaternion.identity); break;
-			default: Debug.Assert(false); break;
-		}
+
+        switch (Manager.Instance.CurrentPlayer)
+        {
+            case CellState.PlayerCross: Instantiate(crossPrefab, transform.position, Quaternion.identity); break;
+            case CellState.PlayerZero: Instantiate(zeroPrefab, transform.position, Quaternion.identity); break;
+            default: Debug.Assert(false); break;
+        }
+        Manager.Instance.MakeMove(localX + 1, 1 - localY);
+        
 		Debug.Log($"Clicked fieldX:{fieldX}, fieldX:{fieldY}, localX:{localX}, localX:{localY}");
-
-		hasMoved = true;
+        hasMoved = true;
 	}
 }
