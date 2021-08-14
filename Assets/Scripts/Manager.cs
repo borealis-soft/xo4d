@@ -108,7 +108,7 @@ public class Manager : MonoBehaviour
 		return targetField;
 	}
 
-	private void SwapPlayer()
+	public void SwapPlayer()
 	{
 		CurrentPlayer = CurrentPlayer == CellState.PlayerCross ? CellState.PlayerZero : CellState.PlayerCross;
 		textInfo.text = "Ходит: Игрок " + (CurrentPlayer == CellState.PlayerCross ? "X" : "O");
