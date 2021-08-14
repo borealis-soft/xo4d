@@ -20,7 +20,7 @@ public class KeypadControl : MonoBehaviour
 #if DEBUG
         if (Input.GetKeyDown(CheatSwapKey))
         {
-            Manager.Instance.SwapPlayer();
+            TacticalTicTacToe.Instance.SwapPlayer();
         }
 #endif
     }

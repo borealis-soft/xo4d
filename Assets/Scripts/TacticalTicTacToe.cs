@@ -5,35 +5,48 @@ using System.Collections.Generic;
 using UnityEngine.UI;
 using UnityEngine;
 
-public class Manager : MonoBehaviour
+public class TacticalTicTacToe : MonoBehaviour
 {
 	[SerializeField] private Cell cellPrefab;
 	[SerializeField] private float localSpacing = 1;
 	[SerializeField] private float fieldSpacing = 5;
 	[SerializeField] private Transform currentMoveZone, nextMoveZone, highlight;
-	[SerializeField] private GameObject crossPrefab, zeroPrefab;
+	[SerializeField] private GameObject crossPrefab, zeroPrefab, linePrefab;
 	[SerializeField] private Text textInfo;
 	[SerializeField] private GameObject winGame;
 	[SerializeField] private Text winnerText;
-	static readonly int[][] winningIndices = new[] {
-		new[] { 0, 1, 2 }, new[] { 3, 4, 5 },
-		new[] { 6, 7, 8 }, new[] { 2, 4, 6 },
-		new[] { 0, 3, 6 }, new[] { 1, 4, 7 },
-		new[] { 2, 5, 8 }, new[] { 0, 4, 8 }
+	struct WineCaseAndLineTransform
+	{
+		public int[] indices;
+		public Vector3 position;
+		public float angle;
+	}
+	static readonly WineCaseAndLineTransform[] winningIndices = new[] {
+		new WineCaseAndLineTransform() { indices = new[] { 0, 1, 2 }, position = Vector3.up   , angle = 0}, 
+		new WineCaseAndLineTransform() { indices = new[] { 3, 4, 5 }, position = Vector3.zero , angle = 0},
+		new WineCaseAndLineTransform() { indices = new[] { 6, 7, 8 }, position = Vector3.down , angle = 0},
+		new WineCaseAndLineTransform() { indices = new[] { 2, 4, 6 }, position = Vector3.zero , angle = 45},
+		new WineCaseAndLineTransform() { indices = new[] { 0, 3, 6 }, position = Vector3.left , angle = 90},
+		new WineCaseAndLineTransform() { indices = new[] { 1, 4, 7 }, position = Vector3.zero , angle = 90},
+		new WineCaseAndLineTransform() { indices = new[] { 2, 5, 8 }, position = Vector3.right, angle = 90},
+		new WineCaseAndLineTransform() { indices = new[] { 0, 4, 8 }, position = Vector3.zero , angle = -45}
 	};
 	private class LocalField
 	{
 		public CellState[] Cells;
 		public int EmptyCount { get; private set; }
 		public GameState GameState { get; private set; }
-
-		public LocalField()
+		public int positionX;
+		public int positionY;
+		public LocalField(int positionX, int positionY)
 		{
 			Cells = new CellState[9];
 			for (int i = 0; i < 9; i++)
 				Cells[i] = CellState.Empty;
 			EmptyCount = 9;
 			GameState = GameState.Playing;
+			this.positionX = positionX;
+			this.positionY = positionY;
 		}
 		public void MakeMove(int x, int y, CellState newState)
 		{
@@ -49,10 +62,11 @@ public class Manager : MonoBehaviour
 
 			foreach (var line in winningIndices)
 			{
-				if (Cells[line[0]] == CellState.Empty) continue;
-				if (Cells[line[0]] == Cells[line[1]] && Cells[line[1]] == Cells[line[2]])
+				if (Cells[line.indices[0]] == CellState.Empty) continue;
+				if (Cells[line.indices[0]] == Cells[line.indices[1]] && Cells[line.indices[1]] == Cells[line.indices[2]])
 				{
-					GameState = (GameState)Cells[line[0]];
+					GameState = (GameState)Cells[line.indices[0]];
+					Instantiate(TacticalTicTacToe.Instance.linePrefab, line.position * TacticalTicTacToe.Instance.localSpacing + new Vector3(positionX, positionY, 0) * TacticalTicTacToe.Instance.fieldSpacing, Quaternion.AngleAxis(line.angle, Vector3.forward));
 					return;
 				}
 			}
@@ -63,7 +77,7 @@ public class Manager : MonoBehaviour
 		}
 	}
 
-	public static Manager Instance;
+	public static TacticalTicTacToe Instance;
 	[HideInInspector] public CellState CurrentPlayer;
 
 	private LocalField[] fields = new LocalField[9];
@@ -92,7 +106,7 @@ public class Manager : MonoBehaviour
 	{
 		for (int i = 0; i < fields.Length; ++i)
 		{
-			fields[i] = new LocalField();
+			fields[i] = new LocalField((i % 3) - 1, 1 - (i / 3));
 		}
 		CurrentPlayer = CellState.PlayerCross;
 
@@ -118,14 +132,16 @@ public class Manager : MonoBehaviour
 	{
 		foreach (var line in winningIndices)
 		{
-			if (fields[line[0]].GameState == GameState.Playing || fields[line[0]].GameState == GameState.Draw) continue;
-			if (fields[line[0]].GameState == fields[line[1]].GameState && fields[line[1]].GameState == fields[line[2]].GameState)
+			if (fields[line.indices[0]].GameState == GameState.Playing || fields[line.indices[0]].GameState == GameState.Draw) continue;
+			if (fields[line.indices[0]].GameState == fields[line.indices[1]].GameState && fields[line.indices[1]].GameState == fields[line.indices[2]].GameState)
 			{
-				GlobalGameState = fields[line[0]].GameState;
+				GlobalGameState = fields[line.indices[0]].GameState;
 				return;
 			}
 		}
-		if (fields.Count(field => field.EmptyCount == 0) == 9)
+		int fullCount = fields.Count(field => field.EmptyCount == 0);
+		int playingCount = fields.Count(field => field.GameState == GameState.Playing);
+		if (fullCount == 9 || playingCount == 0)
 			GlobalGameState = GameState.Draw;
 		else
 			GlobalGameState = GameState.Playing;

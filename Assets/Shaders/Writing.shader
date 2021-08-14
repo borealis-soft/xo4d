@@ -8,12 +8,13 @@ Shader "Unlit/Writing"
     }
     SubShader
     {
-        Tags { "RenderType"="Transparent" "Queue"="Transparent" }
+        Tags { "RenderType"="Opaque" }
+        //Tags { "RenderType"="Transparent" "Queue"="Transparent" }
         LOD 100
 
         Pass
         {
-            Blend SrcAlpha OneMinusSrcAlpha
+            //Blend SrcAlpha OneMinusSrcAlpha
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
@@ -54,6 +55,7 @@ Shader "Unlit/Writing"
                 fixed4 data = tex2D(_MainTex, i.uv);
                 fixed4 color = _MainColor;
                 color.a = data.g * smoothstep(0, -0.01, data.r - _TimeOffset * 1.1f);
+                clip(color.a - 0.5f);
                 return color;
             }
             ENDCG

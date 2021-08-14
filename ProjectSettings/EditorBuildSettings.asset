@@ -9,6 +9,6 @@ EditorBuildSettings:
     path: Assets/Scenes/MainMenu.unity
     guid: 0f0b087162424064796a92e2f7ca49d6
   - enabled: 1
-    path: Assets/Scenes/GameField.unity
+    path: Assets/Scenes/TacticTicTacToe.unity
     guid: 1a3be07bda3a87d418fd768c5aab68ca
   m_configObjects: {}

@@ -12,16 +12,16 @@ public class Cell : MonoBehaviour
     private void OnMouseEnter()
     {
         if (!EventSystem.current.IsPointerOverGameObject())
-            Manager.Instance.OnCellHover(this);
+            TacticalTicTacToe.Instance.OnCellHover(this);
     }
     private void OnMouseExit()
     {
         if (!EventSystem.current.IsPointerOverGameObject())
-            Manager.Instance.OnCellLeave(this);
+            TacticalTicTacToe.Instance.OnCellLeave(this);
     }
     private void OnMouseUp()
     {
         if (!EventSystem.current.IsPointerOverGameObject())
-            Manager.Instance.OnCellClick(this);
+            TacticalTicTacToe.Instance.OnCellClick(this);
     }
 }
