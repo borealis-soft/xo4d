@@ -4,8 +4,9 @@ using UnityEngine;
 
 public class KeypadControl : MonoBehaviour
 {
+#if DEBUG
     public KeyCode CheatSwapKey = KeyCode.Delete;
-    //Убрать на релизе!!! ^
+#endif
     public KeyCode MenuKey = KeyCode.Escape;
     public GameObject MiniMenu;
 
@@ -16,10 +17,11 @@ public class KeypadControl : MonoBehaviour
             MiniMenu.SetActive(!MiniMenu.activeSelf);
         }
 
-        // !!!!Убрать на релизе!!!!
+#if DEBUG
         if (Input.GetKeyDown(CheatSwapKey))
         {
             Manager.Instance.SwapPlayer();
         }
+#endif
     }
 }
