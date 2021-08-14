@@ -2,6 +2,7 @@ Shader "Unlit/Writing"
 {
     Properties
     {
+        _MainColor ("Color", Color) = (1,1,1,1)
         _MainTex ("Texture", 2D) = "white" {}
         _TimeOffset ("Time Offset", Range(0, 1)) = 0
     }
@@ -37,6 +38,7 @@ Shader "Unlit/Writing"
             sampler2D _MainTex;
             float4 _MainTex_ST;
             fixed _TimeOffset;
+            fixed4 _MainColor;
 
             v2f vert (appdata v)
             {
@@ -50,8 +52,8 @@ Shader "Unlit/Writing"
             fixed4 frag (v2f i) : SV_Target
             {
                 fixed4 data = tex2D(_MainTex, i.uv);
-                fixed4 color = 1;
-                color.a = data.g * smoothstep(0, -0.1, data.r - _TimeOffset * 1.1f);
+                fixed4 color = _MainColor;
+                color.a = data.g * smoothstep(0, -0.01, data.r - _TimeOffset * 1.1f);
                 return color;
             }
             ENDCG
