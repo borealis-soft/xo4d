@@ -1417,19 +1417,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 127bce70c2d4a8846bfd0fedcfbcbd8c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  CurrentPlayer: 0
   cellPrefab: {fileID: 707350114812258803, guid: b76ac486b9a0cee48870cd9c86ad6f1c, type: 3}
   localSpacing: 1.2
   fieldSpacing: 4.5
-  currentMoveZone: {fileID: 1980771140}
+  CurrentMoveZone: {fileID: 1980771140}
   nextMoveZone: {fileID: 1433062404}
   highlight: {fileID: 1486446813}
   crossPrefab: {fileID: 3992988956247235146, guid: ed313a826efa0d749a9502e592f9bea7, type: 3}
   zeroPrefab: {fileID: 3832666812292229330, guid: 57dc55bf595093349848332d7d589f6d, type: 3}
   linePrefab: {fileID: 3690747661403149393, guid: 18a8f47526f47eb4caaf9692eb86a7c3, type: 3}
   textInfo: {fileID: 286029805}
-  winGame: {fileID: 1007773269}
-  winnerText: {fileID: 5990445}
-  CurrentPlayer: 0
+  winGameMenu: {fileID: 1007773269}
+  winningText: {fileID: 5990445}
 --- !u!114 &913216428
 MonoBehaviour:
   m_ObjectHideFlags: 0
