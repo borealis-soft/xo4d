@@ -11,7 +11,12 @@ public class HelloWorldPlayer : NetworkBehaviour
         ReadPermission = NetworkVariablePermission.Everyone
     });
 
-    public override void NetworkStart()
+	private void Awake()
+	{
+        Position.OnValueChanged += (Vector3 prev, Vector3 @new) => transform.position = @new;
+    }
+
+	public override void NetworkStart()
     {
         Move();
     }
@@ -20,9 +25,7 @@ public class HelloWorldPlayer : NetworkBehaviour
     {
         if (NetworkManager.Singleton.IsServer)
         {
-            var randomPosition = GetRandomPositionOnPlane();
-            transform.position = randomPosition;
-            Position.Value = randomPosition;
+            Position.Value = GetRandomPositionOnPlane();
         }
         else
         {
@@ -39,10 +42,5 @@ public class HelloWorldPlayer : NetworkBehaviour
     static Vector3 GetRandomPositionOnPlane()
     {
         return new Vector3(Random.Range(-3f, 3f), 1f, Random.Range(-3f, 3f));
-    }
-
-    void Update()
-    {
-        transform.position = Position.Value;
     }
 }

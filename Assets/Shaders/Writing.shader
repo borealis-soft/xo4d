@@ -2,15 +2,17 @@ Shader "Unlit/Writing"
 {
     Properties
     {
-        _MainColor ("Color", Color) = (1,1,1,1)
+        _Color ("Color", Color) = (1,1,1,1)
         _MainTex ("Texture", 2D) = "white" {}
         _TimeOffset ("Time Offset", Range(0, 1)) = 0
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
-        //Tags { "RenderType"="Transparent" "Queue"="Transparent" }
+        Tags { "RenderType"="Transparent" "Queue"="Transparent" }
         LOD 100
+        Blend SrcAlpha OneMinusSrcAlpha
+        ZWrite false
+        ZTest true
 
         Pass
         {
@@ -39,7 +41,7 @@ Shader "Unlit/Writing"
             sampler2D _MainTex;
             float4 _MainTex_ST;
             fixed _TimeOffset;
-            fixed4 _MainColor;
+            fixed4 _Color;
 
             v2f vert (appdata v)
             {
@@ -53,9 +55,9 @@ Shader "Unlit/Writing"
             fixed4 frag (v2f i) : SV_Target
             {
                 fixed4 data = tex2D(_MainTex, i.uv);
-                fixed4 color = _MainColor;
-                color.a = data.g * smoothstep(0, -0.01, data.r - _TimeOffset * 1.1f);
-                clip(color.a - 0.5f);
+                fixed4 color = _Color;
+                color.a *= data.g * smoothstep(0, -0.01, data.r - _TimeOffset * 1.1f);
+                color.a = saturate(color.a);
                 return color;
             }
             ENDCG
