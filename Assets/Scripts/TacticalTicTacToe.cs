@@ -4,8 +4,11 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.UI;
 using UnityEngine;
+using MLAPI;
+using UnityEngine.SceneManagement;
+using MLAPI.Messaging;
 
-public class TacticalTicTacToe : MonoBehaviour
+public class TacticalTicTacToe : NetworkBehaviour
 {
     private class LocalField // сделать через шаблон
     {
@@ -45,9 +48,7 @@ public class TacticalTicTacToe : MonoBehaviour
                 if (Cells[indices[0]] == Cells[indices[1]] && Cells[indices[1]] == Cells[indices[2]])
                 {
                     GameState = (GameState)Cells[indices[0]];
-                    TacticalTicTacToe inc = TacticalTicTacToe.Instance;
-                    Vector3 globalLinePos = GetLinePos(indices[1]) * inc.localSpacing + new Vector3(positionX, positionY, 0) * inc.fieldSpacing;
-                    Instantiate(inc.linePrefab, globalLinePos, Quaternion.AngleAxis(angle, Vector3.forward));
+                    CreateLineClientRpc(indices[1], angle);
                     return;
                 }
             }
@@ -55,6 +56,14 @@ public class TacticalTicTacToe : MonoBehaviour
                 GameState = GameState.Draw;
             else
                 GameState = GameState.Playing;
+        }
+
+        [ClientRpc]
+        private void CreateLineClientRpc(int id, float angle)
+        {
+            TacticalTicTacToe inc = Instance;
+            Vector3 globalLinePos = GetLinePos(id) * inc.localSpacing + new Vector3(positionX, positionY, 0) * inc.fieldSpacing;
+            Instantiate(inc.linePrefab, globalLinePos, Quaternion.AngleAxis(angle, Vector3.forward));
         }
     }
 
@@ -68,6 +77,7 @@ public class TacticalTicTacToe : MonoBehaviour
     [SerializeField] private GameObject crossPrefab, zeroPrefab, linePrefab;
     [SerializeField] private Text textInfo;
     [SerializeField] private GameObject winGameMenu;
+    [SerializeField] private Transform GameFieldParent;
     [SerializeField] private Text winningText;
 
     private LocalField[] fields = new LocalField[9];
@@ -87,6 +97,8 @@ public class TacticalTicTacToe : MonoBehaviour
 
     private void Awake()
     {
+        NetAuntif();
+
         Instance = this;
         for (int fieldX = -1; fieldX <= 1; ++fieldX)
             for (int fieldY = -1; fieldY <= 1; ++fieldY)
@@ -95,7 +107,7 @@ public class TacticalTicTacToe : MonoBehaviour
                     {
                         Vector3 localPos = new Vector3(localX, localY, 0) * localSpacing;
                         Vector3 fieldPos = new Vector3(fieldX, fieldY, 0) * fieldSpacing;
-                        Cell cell = Instantiate(cellPrefab, localPos + fieldPos, Quaternion.identity);
+                        Cell cell = Instantiate(cellPrefab, localPos + fieldPos, Quaternion.identity, GameFieldParent);
                         cell.localX = 1 + localX;
                         cell.localY = 1 - localY;
                         cell.fieldX = 1 + fieldX;
@@ -112,6 +124,30 @@ public class TacticalTicTacToe : MonoBehaviour
 
         CurrentPlayer = CellState.PlayerCross;
         GetNextField = GetNextField_Easy;
+    }
+
+    private void NetAuntif()
+    {
+        if (!NetworkSingleton.Instance) return;
+        switch (NetworkSingleton.Instance.GameMode)
+        {
+            case GameMode.SingleGame:
+                break;
+            case GameMode.HostGame:
+                NetworkManager.Singleton.StartHost();
+                Debug.Log("Server created!");
+                break;
+            case GameMode.ClientGame:
+                var res = NetworkManager.Singleton.StartClient();
+                //if (!res.Success) // Не рабочее говно!
+                //{
+                //    Debug.Log("Error connection!");
+                //    NetworkManager.Singleton.StopClient();
+                //    SceneManager.LoadScene(0);
+                //}
+                Debug.Log("Sucesseful connect to server!");
+                break;
+        }
     }
 
     private static Vector3 GetLinePos(int id) => id switch
@@ -154,7 +190,8 @@ public class TacticalTicTacToe : MonoBehaviour
         else
             GlobalGameState = GameState.Playing;
     }
-    public CellState MakeMove(Cell cell)
+
+    public CellState MakeMove(int localX, int localY, int fieldX, int fieldY)
     {
         if (GlobalGameState != GameState.Playing)
         {
@@ -162,18 +199,18 @@ public class TacticalTicTacToe : MonoBehaviour
         }
 
         if (currentField == null)
-            currentField = fields[cell.fieldY * 3 + cell.fieldX];
-        if (currentField != fields[cell.fieldY * 3 + cell.fieldX])
+            currentField = fields[fieldY * 3 + fieldX];
+        if (currentField != fields[fieldY * 3 + fieldX])
             return CellState.Empty;
 
-        currentField.MakeMove(cell.localX, cell.localY, CurrentPlayer);
+        currentField.MakeMove(localX, localY, CurrentPlayer);
 
 
-        currentField = GetNextField(fields[cell.localY * 3 + cell.localX]);
+        currentField = GetNextField(fields[localY * 3 + localX]);
         if (currentField == null)
             CurrentMoveZone.position = Vector3.up * 1000;
         else
-            CurrentMoveZone.position = new Vector3(cell.localX - 1, 1 - cell.localY) * fieldSpacing;
+            CurrentMoveZone.position = new Vector3(localX - 1, 1 - localY) * fieldSpacing;
 
 
         UpdateGameState();
@@ -185,9 +222,9 @@ public class TacticalTicTacToe : MonoBehaviour
         return movedPlayer;
     }
 
-    public bool IsHighlightable(Cell cell)
+    public bool IsHighlightable(int fieldX, int fieldY)
     {
-        var targetField = fields[cell.fieldY * 3 + cell.fieldX];
+        var targetField = fields[fieldY * 3 + fieldX];
         if (targetField.GameState != GameState.Playing)
             return false;
         if (currentField == null)
@@ -195,11 +232,14 @@ public class TacticalTicTacToe : MonoBehaviour
         return currentField == targetField;
 
     }
+
+    private Cell costil; // убрать это говно как разберусь!!!
     public void OnCellHover(Cell cell)
     {
         if (cell.hasMoved) return;
-        if (IsHighlightable(cell))
+        if (IsHighlightable(cell.fieldX, cell.fieldY))
         {
+            costil = cell; // убрать это говно как разберусь!!!
             nextMoveZone.position = new Vector3(cell.localX - 1, 1 - cell.localY) * fieldSpacing;
             highlight.position = cell.transform.position;
         }
@@ -210,23 +250,33 @@ public class TacticalTicTacToe : MonoBehaviour
         nextMoveZone.position = Vector3.up * 1000;
         highlight.position = Vector3.up * 1000;
     }
-    public void OnCellClick(Cell cell)
-    {
-        if (cell.hasMoved) return;
 
-        if (IsHighlightable(cell))
+    [ServerRpc]
+    public void OnCellClickServerRpc(int localX, int localY, int fieldX, int fieldY, bool hasMoved, Vector3 pos)
+    {
+        if (!hasMoved && IsHighlightable(fieldX, fieldY))
         {
-            switch (MakeMove(cell))
+            switch (MakeMove(localX, localY, fieldX, fieldY))
             {
-                case CellState.PlayerCross: Instantiate(crossPrefab, cell.transform.position, Quaternion.identity); break;
-                case CellState.PlayerZero: Instantiate(zeroPrefab, cell.transform.position, Quaternion.identity); break;
+                case CellState.PlayerCross: CreatePrefClientRpc(true, pos); break;
+                case CellState.PlayerZero: CreatePrefClientRpc(false, pos); break;
                 default: return;
             }
 
             //Debug.Log($"Clicked fieldX:{fieldX}, fieldX:{fieldY}, localX:{localX}, localX:{localY}");
-            cell.hasMoved = true;
+            costil.hasMoved = true; // убрать это говно как разберусь!!!
             CheckWin();
+            return;
         }
+    }
+
+    [ClientRpc]
+    private void CreatePrefClientRpc(bool flag, Vector3 pos)
+    {
+        if (flag)
+            Instantiate(crossPrefab, pos, Quaternion.identity);
+        else
+            Instantiate(zeroPrefab, pos, Quaternion.identity);
     }
 
     private void CheckWin()

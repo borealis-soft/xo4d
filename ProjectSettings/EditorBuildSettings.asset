@@ -5,13 +5,16 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
+    path: Assets/Editor/Assets/Scenes/GoldenPath.unity
+    guid: 46ba533763780d34595b5f1bad7be47a
+  - enabled: 0
     path: Assets/Editor/Assets/Scenes/NetworkTests.unity
     guid: dac849e877336d342849c017e1244c8b
-  - enabled: 0
+  - enabled: 1
     path: Assets/Scenes/MainMenu.unity
     guid: 0f0b087162424064796a92e2f7ca49d6
-  - enabled: 0
+  - enabled: 1
     path: Assets/Scenes/TacticTicTacToe.unity
     guid: 1a3be07bda3a87d418fd768c5aab68ca
   m_configObjects: {}
