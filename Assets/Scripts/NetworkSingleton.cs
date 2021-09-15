@@ -13,9 +13,9 @@ public class NetworkSingleton : MonoBehaviour
     }
 }
 
-public enum GameMode
-{
-    SingleGame,
-    HostGame,
-    ClientGame
-}
+//public enum GameMode
+//{
+//    SingleGame,
+//    HostGame,
+//    ClientGame
+//}

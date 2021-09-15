@@ -4,26 +4,41 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.UI;
 using UnityEngine;
-using MLAPI;
 using UnityEngine.SceneManagement;
+using MLAPI;
 using MLAPI.Messaging;
+using MLAPI.NetworkVariable;
+using MLAPI.Serialization;
+using MLAPI.NetworkVariable.Collections;
+using MLAPI.Connection;
 
 public class TacticalTicTacToe : NetworkBehaviour
 {
-    private class LocalField // сделать через шаблон
+    public class LocalField : INetworkSerializable
     {
         public CellState[] Cells;
-        public GameState GameState { get; private set; }
+        public GameState GameState;
         public int positionX;
         public int positionY;
+        private int emptyCount;
 
-        private int EmptyCount;
+        public LocalField()
+        {
+            Cells = new CellState[9];
+            for (int i = 0; i < 9; i++)
+                Cells[i] = CellState.Empty;
+            GameState = GameState.Playing;
+            positionX = 0;
+            positionY = 0;
+            emptyCount = 9;
+        }
+
         public LocalField(int positionX, int positionY)
         {
             Cells = new CellState[9];
             for (int i = 0; i < 9; i++)
                 Cells[i] = CellState.Empty;
-            EmptyCount = 9;
+            emptyCount = 9;
             GameState = GameState.Playing;
             this.positionX = positionX;
             this.positionY = positionY;
@@ -38,7 +53,7 @@ public class TacticalTicTacToe : NetworkBehaviour
             Debug.Assert(x >= 0 && x < 3 && y >= 0 && y < 3);
             Debug.Assert(newState != CellState.Empty);
             Cells[y * 3 + x] = newState;
-            EmptyCount--;
+            emptyCount--;
 
             float angle = -90;
             foreach (var indices in winningIndices)
@@ -48,27 +63,58 @@ public class TacticalTicTacToe : NetworkBehaviour
                 if (Cells[indices[0]] == Cells[indices[1]] && Cells[indices[1]] == Cells[indices[2]])
                 {
                     GameState = (GameState)Cells[indices[0]];
-                    CreateLineClientRpc(indices[1], angle);
+                    TacticalTicTacToe inc = Instance;
+                    Vector3 globalLinePos = GetLinePos(indices[1]) * inc.localSpacing + new Vector3(positionX, positionY, 0) * inc.fieldSpacing;
+                    inc.InstantiateLineCLientRpc(globalLinePos, angle);
                     return;
                 }
             }
-            if (EmptyCount == 0)
+            if (emptyCount == 0)
                 GameState = GameState.Draw;
             else
                 GameState = GameState.Playing;
         }
 
-        [ClientRpc]
-        private void CreateLineClientRpc(int id, float angle)
+        public void NetworkSerialize(NetworkSerializer serializer)
         {
-            TacticalTicTacToe inc = Instance;
-            Vector3 globalLinePos = GetLinePos(id) * inc.localSpacing + new Vector3(positionX, positionY, 0) * inc.fieldSpacing;
-            Instantiate(inc.linePrefab, globalLinePos, Quaternion.AngleAxis(angle, Vector3.forward));
+            int length = Cells.Length;
+            serializer.Serialize(ref length);
+            for (int i = 0; i < length; i++)
+                serializer.Serialize(ref Cells[i]);
+            serializer.Serialize(ref GameState);
+            serializer.Serialize(ref positionX);
+            serializer.Serialize(ref positionY);
+            serializer.Serialize(ref emptyCount);
         }
+
+        public override bool Equals(object obj)
+        {
+            return object.ReferenceEquals(this, obj);
+        }
+
+        public override int GetHashCode()
+        {
+            return base.GetHashCode();
+        }
+
+        public static bool operator ==(LocalField val1, LocalField val2)
+        {
+            if (val1 is null && val2 is null) return true;
+            if (val1 is null || val2 is null) return false;
+            return val1.positionX == val2.positionX && val1.positionY == val2.positionY;
+        }
+
+        public static bool operator !=(LocalField val1, LocalField val2) => !(val1 == val2);
     }
 
     public static TacticalTicTacToe Instance;
-    [HideInInspector] public CellState CurrentPlayer;
+    public CellState CurrentPlayer { get; private set; } = CellState.PlayerCross;
+    private NetworkVariable<CellState> currentNetPlayer = new NetworkVariable<CellState>(new NetworkVariableSettings()
+    {
+        WritePermission = NetworkVariablePermission.ServerOnly,
+        ReadPermission = NetworkVariablePermission.Everyone
+    }, CellState.PlayerCross);
+
 
     [SerializeField] private Cell cellPrefab;
     [SerializeField] private float localSpacing = 1.5f;
@@ -79,10 +125,19 @@ public class TacticalTicTacToe : NetworkBehaviour
     [SerializeField] private GameObject winGameMenu;
     [SerializeField] private Transform GameFieldParent;
     [SerializeField] private Text winningText;
+    [SerializeField] private Text RoleText;
 
-    private LocalField[] fields = new LocalField[9];
+    public static readonly List<LocalCell> AllCells = new List<LocalCell>(81);
+    public LocalField[] Fields { get; private set; } = new LocalField[9];
     private LocalField currentField = null;
+    private NetworkVariable<LocalField> currentNetField = new NetworkVariable<LocalField>(new NetworkVariableSettings()
+    {
+        ReadPermission = NetworkVariablePermission.Everyone,
+        WritePermission = NetworkVariablePermission.ServerOnly
+    });
+    private Cell currentCell = null;
     private GameState GlobalGameState = GameState.Playing;
+    private NetworkClient localNetworkClient;
 
     private static readonly int[][] winningIndices = new int[][] {
         new int[] { 0, 4, 8 },// angle -45  
@@ -97,39 +152,118 @@ public class TacticalTicTacToe : NetworkBehaviour
 
     private void Awake()
     {
-        NetAuntif();
-
+        currentNetField.OnValueChanged += (LocalField prev, LocalField @new) => currentField = @new;
+        currentNetPlayer.OnValueChanged += (CellState prev, CellState @new) =>
+        {
+            CurrentPlayer = @new;
+            textInfo.text = "Ходит: Игрок " + (CurrentPlayer == CellState.PlayerCross ? "X" : "O");
+        };
         Instance = this;
-        for (int fieldX = -1; fieldX <= 1; ++fieldX)
-            for (int fieldY = -1; fieldY <= 1; ++fieldY)
-                for (int localX = -1; localX <= 1; ++localX)
-                    for (int localY = -1; localY <= 1; ++localY)
+        NetAuntif();
+        for (int fieldX = 0, i = 0; fieldX <= 2; ++fieldX, i++)
+            for (int fieldY = 0; fieldY <= 2; ++fieldY, i++)
+                for (int localX = 0; localX <= 2; ++localX, i++)
+                    for (int localY = 0; localY <= 2; ++localY, i++)
                     {
                         Vector3 localPos = new Vector3(localX, localY, 0) * localSpacing;
                         Vector3 fieldPos = new Vector3(fieldX, fieldY, 0) * fieldSpacing;
                         Cell cell = Instantiate(cellPrefab, localPos + fieldPos, Quaternion.identity, GameFieldParent);
-                        cell.localX = 1 + localX;
-                        cell.localY = 1 - localY;
-                        cell.fieldX = 1 + fieldX;
-                        cell.fieldY = 1 - fieldY;
+                        cell.cell.localX = localX;
+                        cell.cell.localY = localY;
+                        cell.cell.fieldX = fieldX;
+                        cell.cell.fieldY = fieldY;
+                        cell.cell.pos = cell.transform.position;
+                        AllCells.Add(cell.cell);
                     }
     }
 
     private void Start()
     {
-        for (int i = 0; i < fields.Length; ++i)
+        for (int i = 0; i < Fields.Length; ++i)
         {
-            fields[i] = new LocalField((i % 3) - 1, 1 - (i / 3));
+            Fields[i] = new LocalField(i % 3, i / 3);
         }
 
-        CurrentPlayer = CellState.PlayerCross;
         GetNextField = GetNextField_Easy;
+    }
+
+    public override void NetworkStart()
+    {
+        base.NetworkStart();
+        NetworkManager.Singleton.ConnectedClients.TryGetValue(NetworkManager.Singleton.LocalClientId, out localNetworkClient);
+    }
+
+    [ClientRpc]
+    public void GetRoleClientRpc(CellState newRole, ClientRpcParams clientRpcParams = default)
+    {
+        var player = localNetworkClient.PlayerObject.GetComponent<GamePlayerManager>();
+        if (player)
+        {
+            player.MyRole = newRole;
+            RoleText.text = "Текущая роль: " + (player.MyRole == CellState.PlayerZero ? "Нолик": "Зритель");
+            Debug.Log($"Моя роль: {player.MyRole}");
+        }
+    }
+
+    [ClientRpc]
+    public void SyncFieldsClientRpc(LocalField[] localFields, bool[] localCellsHasMoved, ClientRpcParams clientRpcParams = default)
+    {
+        Debug.Assert(!IsServer);
+        if (!IsServer)
+        {
+            for (int i = 0; i < localCellsHasMoved.Length; i++)
+                if (AllCells[i].hasMoved != localCellsHasMoved[i])
+                    AllCells[i].hasMoved = localCellsHasMoved[i];
+
+            for (int i = 0; i < localFields.Length; i++)
+            //(var field in localFields)
+            {
+                for (int cellId = 0; cellId < localFields[i].Cells.Length; cellId++)
+                {
+                    if (localFields[i].Cells[cellId] != CellState.Empty)
+                    {
+                        int localX = cellId % 3, localY = cellId / 3;
+                        Vector3 localPos = new Vector3(localX, localY, 0) * localSpacing;
+                        Vector3 fieldPos = new Vector3(localFields[i].positionX, localFields[i].positionY, 0) * fieldSpacing;
+                        switch (localFields[i].Cells[cellId])
+                        {
+                            case CellState.PlayerCross:
+                                Instantiate(crossPrefab, localPos + fieldPos, Quaternion.identity);
+                                break;
+                            case CellState.PlayerZero:
+                                Instantiate(zeroPrefab, localPos + fieldPos, Quaternion.identity);
+                                break;
+                        }
+                    }
+                }
+                if (localFields[i].GameState != Fields[i].GameState)
+                    Fields[i].GameState = localFields[i].GameState;
+                float angle = -90;
+                foreach (var indices in winningIndices)
+                {
+                    if (indices[1] == 4) angle += 45;
+                    if (localFields[i].Cells[indices[0]] == CellState.Empty) continue;
+                    if (localFields[i].Cells[indices[0]] == localFields[i].Cells[indices[1]] && localFields[i].Cells[indices[1]] == localFields[i].Cells[indices[2]])
+                    {
+                        TacticalTicTacToe inc = Instance;
+                        Vector3 globalLinePos = GetLinePos(indices[1]) * inc.localSpacing + new Vector3(localFields[i].positionX, localFields[i].positionY, 0) * inc.fieldSpacing;
+                        Instantiate(linePrefab, globalLinePos, Quaternion.AngleAxis(angle, Vector3.forward));
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    [ClientRpc]
+    private void InstantiateLineCLientRpc(Vector3 pos, float angle)
+    {
+        Instantiate(linePrefab, pos, Quaternion.AngleAxis(angle, Vector3.forward));
     }
 
     private void NetAuntif()
     {
-        if (!NetworkSingleton.Instance) return;
-        switch (NetworkSingleton.Instance.GameMode)
+        switch (MainMenu.GameMode)
         {
             case GameMode.SingleGame:
                 break;
@@ -138,6 +272,13 @@ public class TacticalTicTacToe : NetworkBehaviour
                 Debug.Log("Server created!");
                 break;
             case GameMode.ClientGame:
+                if (MainMenu.AddrText != string.Empty)
+                {
+                    var transport = NetworkManager.Singleton.GetComponent<MLAPI.Transports.UNET.UNetTransport>();
+                    string[] addr = MainMenu.AddrText.Split(':');
+                    transport.ConnectAddress = addr[0];
+                    transport.ConnectPort = int.Parse(addr[1]);
+                }
                 var res = NetworkManager.Singleton.StartClient();
                 //if (!res.Success) // Не рабочее говно!
                 //{
@@ -169,114 +310,122 @@ public class TacticalTicTacToe : NetworkBehaviour
 
     public void SwapPlayer()
     {
-        CurrentPlayer = CurrentPlayer == CellState.PlayerCross ? CellState.PlayerZero : CellState.PlayerCross;
-        textInfo.text = "Ходит: Игрок " + (CurrentPlayer == CellState.PlayerCross ? "X" : "O");
+        currentNetPlayer.Value = currentNetPlayer.Value == CellState.PlayerCross ? CellState.PlayerZero : CellState.PlayerCross;
     }
 
     public void UpdateGameState()
     {
         foreach (var indices in winningIndices)
         {
-            if (fields[indices[0]].GameState == GameState.Playing || fields[indices[0]].GameState == GameState.Draw) continue;
-            if (fields[indices[0]].GameState == fields[indices[1]].GameState && fields[indices[1]].GameState == fields[indices[2]].GameState)
+            if (Fields[indices[0]].GameState == GameState.Playing || Fields[indices[0]].GameState == GameState.Draw) continue;
+            if (Fields[indices[0]].GameState == Fields[indices[1]].GameState && Fields[indices[1]].GameState == Fields[indices[2]].GameState)
             {
-                GlobalGameState = fields[indices[0]].GameState;
+                GlobalGameState = Fields[indices[0]].GameState;
                 return;
             }
         }
-        int playingCount = fields.Count(field => field.GameState == GameState.Playing);
+        int playingCount = Fields.Count(field => field.GameState == GameState.Playing);
         if (playingCount == 0)
             GlobalGameState = GameState.Draw;
         else
             GlobalGameState = GameState.Playing;
+        SwapPlayer();
     }
 
-    public CellState MakeMove(int localX, int localY, int fieldX, int fieldY)
+    [ClientRpc]
+    public void SetMoveZoneClientRpc(Vector3 newPos)
     {
-        if (GlobalGameState != GameState.Playing)
-        {
-            return CellState.Empty;
-        }
-
-        if (currentField == null)
-            currentField = fields[fieldY * 3 + fieldX];
-        if (currentField != fields[fieldY * 3 + fieldX])
-            return CellState.Empty;
-
-        currentField.MakeMove(localX, localY, CurrentPlayer);
-
-
-        currentField = GetNextField(fields[localY * 3 + localX]);
         if (currentField == null)
             CurrentMoveZone.position = Vector3.up * 1000;
         else
-            CurrentMoveZone.position = new Vector3(localX - 1, 1 - localY) * fieldSpacing;
+            CurrentMoveZone.position = newPos;
+    }
 
+    public CellState MakeMove(LocalCell cell)
+    {
 
-        UpdateGameState();
+        if (currentField == null)
+            currentNetField.Value = Fields[cell.fieldY * 3 + cell.fieldX];
+        Debug.Assert(currentField == Fields[cell.fieldY * 3 + cell.fieldX]);
+        //    return CellState.Empty;
+
+        currentField.MakeMove(cell.localX, cell.localY, CurrentPlayer);
+        currentNetField.Value = GetNextField(Fields[cell.localY * 3 + cell.localX]);
 
         var movedPlayer = CurrentPlayer;
-        SwapPlayer();
+        var vec3rightUp = Vector3.right + Vector3.up;
+        SetMoveZoneClientRpc(new Vector3(cell.localX, cell.localY) * fieldSpacing + vec3rightUp * localSpacing);
+        UpdateGameState();
 
-        Debug.Log($"total: {GlobalGameState}, 0:{fields[0].GameState}, 1:{fields[1].GameState}, 2:{fields[2].GameState}, 3:{fields[3].GameState}, 4:{fields[4].GameState}, 5:{fields[5].GameState}, 6:{fields[6].GameState}, 7:{fields[7].GameState}, 8:{fields[8].GameState}");
+        //Debug.Log($"total: {GlobalGameState}, 0:{fields[0].GameState}, 1:{fields[1].GameState}, 2:{fields[2].GameState}, 3:{fields[3].GameState}, " +
+        //    $"4:{fields[4].GameState}, 5:{fields[5].GameState}, 6:{fields[6].GameState}, 7:{fields[7].GameState}, 8:{fields[8].GameState}");
         return movedPlayer;
     }
 
-    public bool IsHighlightable(int fieldX, int fieldY)
+    public bool IsHighlightable() => IsHighlightable(currentCell.cell);
+
+    public bool IsHighlightable(LocalCell cell)
     {
-        var targetField = fields[fieldY * 3 + fieldX];
+        var targetField = Fields[cell.fieldY * 3 + cell.fieldX];
         if (targetField.GameState != GameState.Playing)
             return false;
         if (currentField == null)
             return true;
         return currentField == targetField;
-
     }
 
-    private Cell costil; // убрать это говно как разберусь!!!
     public void OnCellHover(Cell cell)
     {
-        if (cell.hasMoved) return;
-        if (IsHighlightable(cell.fieldX, cell.fieldY))
+        bool isViewer = localNetworkClient.PlayerObject.GetComponent<GamePlayerManager>().MyRole == CellState.Empty;
+        if (!isViewer && cell.cell.hasMoved) return;
+        if (isViewer || IsHighlightable(cell.cell))
         {
-            costil = cell; // убрать это говно как разберусь!!!
-            nextMoveZone.position = new Vector3(cell.localX - 1, 1 - cell.localY) * fieldSpacing;
-            highlight.position = cell.transform.position;
+            var vec3rightUp = Vector3.right + Vector3.up;
+            nextMoveZone.position = new Vector3(cell.cell.localX, cell.cell.localY) * fieldSpacing + localSpacing * vec3rightUp;
+            highlight.position = cell.cell.pos;
+            currentCell = cell;
         }
     }
-    public void OnCellLeave(Cell cell)
+    public void OnCellLeave()
     {
-        if (cell.hasMoved) return;
+        if (currentCell == null) return;
         nextMoveZone.position = Vector3.up * 1000;
         highlight.position = Vector3.up * 1000;
+        currentCell = null;
     }
 
-    [ServerRpc]
-    public void OnCellClickServerRpc(int localX, int localY, int fieldX, int fieldY, bool hasMoved, Vector3 pos)
+    public void MakeMoveNet(LocalCell cell)
     {
-        if (!hasMoved && IsHighlightable(fieldX, fieldY))
-        {
-            switch (MakeMove(localX, localY, fieldX, fieldY))
-            {
-                case CellState.PlayerCross: CreatePrefClientRpc(true, pos); break;
-                case CellState.PlayerZero: CreatePrefClientRpc(false, pos); break;
-                default: return;
-            }
+        //Debug.Log($"Clicked fieldX:{fieldX}, fieldX:{fieldY}, localX:{localX}, localX:{localY}");
+        CellState tempState = MakeMove(cell);
+        Debug.Assert(tempState != CellState.Empty);
 
-            //Debug.Log($"Clicked fieldX:{fieldX}, fieldX:{fieldY}, localX:{localX}, localX:{localY}");
-            costil.hasMoved = true; // убрать это говно как разберусь!!!
-            CheckWin();
-            return;
-        }
+        InstantiateCLientRpc(tempState, cell);
+        CheckWin();
     }
 
     [ClientRpc]
-    private void CreatePrefClientRpc(bool flag, Vector3 pos)
+    public void InstantiateCLientRpc(CellState cellState, LocalCell cell)
     {
-        if (flag)
-            Instantiate(crossPrefab, pos, Quaternion.identity);
+        if (cellState == CellState.PlayerCross)
+            Instantiate(crossPrefab, cell.pos, Quaternion.identity);
         else
-            Instantiate(zeroPrefab, pos, Quaternion.identity);
+            Instantiate(zeroPrefab, cell.pos, Quaternion.identity);
+
+        var temp = AllCells.Find(val => val == cell);
+        temp.hasMoved = true;
+    }
+
+    public void OnCellClick()
+    {
+        if (GlobalGameState == GameState.Playing && currentCell != null && IsHighlightable())
+        {
+            var player = localNetworkClient.PlayerObject.GetComponent<GamePlayerManager>();
+            if (player)
+            {
+                player.MakeMove(currentCell.cell);
+            }
+        }
     }
 
     private void CheckWin()
@@ -297,9 +446,15 @@ public class TacticalTicTacToe : NetworkBehaviour
                     winText = "Победила дружба!";
                     break;
             }
-            winningText.text = winText;
-            winGameMenu.SetActive(true);
+            ActivatedWinMenuClientRpc(winText);
         }
+    }
+
+    [ClientRpc]
+    private void ActivatedWinMenuClientRpc(string winText)
+    {
+        winningText.text = winText;
+        winGameMenu.SetActive(true);
     }
 }
 

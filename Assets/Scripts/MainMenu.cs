@@ -10,9 +10,18 @@ using UnityEngine.UI;
 
 public class MainMenu : MonoBehaviour
 {
+    public static GameMode GameMode { get; set; } = GameMode.SingleGame;
+    public static string AddrText { get; set; }
+
+    private void StopAllNetworks()
+    {
+        if (NetworkManager.Singleton.IsClient) NetworkManager.Singleton.StopClient();
+        if (NetworkManager.Singleton.IsServer) NetworkManager.Singleton.StopServer();
+    }
+
     public void LoadGame(int sceneID)
     {
-        NetworkSingleton.Instance.GameMode = GameMode.SingleGame;
+        StopAllNetworks();
         SceneManager.LoadScene(sceneID);
     }
 
@@ -23,26 +32,27 @@ public class MainMenu : MonoBehaviour
 
     public void ResetGame()
     {
+        StopAllNetworks();
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     public void CreateServer()
     {
-        NetworkSingleton.Instance.GameMode = GameMode.HostGame;
+        GameMode = GameMode.HostGame;
         SceneManager.LoadScene(1);
     }
 
     public void ConnectToServer(Text InputAddrText)
     {
-        if (InputAddrText.text != string.Empty)
-        {
-            var transport = NetworkManager.Singleton.GetComponent<UNetTransport>();
-            string[] addr = InputAddrText.text.Split(':');
-            transport.ConnectAddress = addr[0];
-            transport.ConnectPort = int.Parse(addr[1]);
-        }
-
-        NetworkSingleton.Instance.GameMode = GameMode.ClientGame;
+        AddrText = InputAddrText.text;
+        GameMode = GameMode.ClientGame;
         SceneManager.LoadScene(1);
     }
+}
+
+public enum GameMode
+{
+    SingleGame,
+    HostGame,
+    ClientGame
 }
