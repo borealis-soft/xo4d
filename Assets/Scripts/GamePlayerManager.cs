@@ -20,6 +20,20 @@ public class GamePlayerManager : NetworkBehaviour
         }
     }
 
+#if DEBUG
+    public static GamePlayerManager Instance;
+    public void SwapRole()
+    {
+        MyRole = MyRole == CellState.PlayerCross ? CellState.PlayerZero : CellState.PlayerCross;
+        TacticalTicTacToe.Instance.RoleText.text = "Текущая роль: " + MyRole;
+    }
+
+    public void Awake()
+    {
+        Instance = this;
+    }
+#endif
+
     public void MakeMove(LocalCell cell)
     {
         if (TacticalTicTacToe.Instance.CurrentPlayer != MyRole) return;
@@ -39,6 +53,18 @@ public class GamePlayerManager : NetworkBehaviour
     };
 
     [ServerRpc]
+    public void SendMessageServerRpc(string message)
+    {
+        TacticalTicTacToe.Instance.CreateMessageObjClientRpc(message);
+    }
+
+    [ServerRpc]
+    private void MakeMoveServerRpc(LocalCell cell)
+    {
+        TacticalTicTacToe.Instance.MakeMoveNet(cell);
+    }
+
+    [ServerRpc]
     private void RequestRoleServerRpc(ulong clientId)
     {
         CellState newRole = NetworkManager.Singleton.ConnectedClientsList.Count <= 2 ? CellState.PlayerZero : CellState.Empty;
@@ -52,11 +78,5 @@ public class GamePlayerManager : NetworkBehaviour
         bool[] cellsHesMoved = TacticalTicTacToe.AllCells.Select(cell => cell.hasMoved).ToArray();
         ClientRpcParams clientRpcParams = GetClientRpcParams(clientId);
         TacticalTicTacToe.Instance.SyncFieldsClientRpc(TacticalTicTacToe.Instance.Fields, cellsHesMoved, clientRpcParams);
-    }
-
-    [ServerRpc]
-    public void MakeMoveServerRpc(LocalCell cell)
-    {
-        TacticalTicTacToe.Instance.MakeMoveNet(cell);
     }
 }

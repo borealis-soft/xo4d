@@ -8,7 +8,10 @@ public class KeypadControl : MonoBehaviour
     public KeyCode CheatSwapKey = KeyCode.Delete;
 #endif
     public KeyCode MenuKey = KeyCode.Escape;
+    public KeyCode ChatKey = KeyCode.Return;
+
     public GameObject MiniMenu;
+    public GameObject ChatPanel;
 
     private void Update()
     {
@@ -16,11 +19,15 @@ public class KeypadControl : MonoBehaviour
         {
             MiniMenu.SetActive(!MiniMenu.activeSelf);
         }
+        if (Input.GetKeyDown(ChatKey))
+        {
+            ChatPanel.SetActive(!ChatPanel.activeSelf);
+        }
 
 #if DEBUG
         if (Input.GetKeyDown(CheatSwapKey))
         {
-            TacticalTicTacToe.Instance.SwapPlayer();
+            GamePlayerManager.Instance.SwapRole();
         }
 #endif
     }
