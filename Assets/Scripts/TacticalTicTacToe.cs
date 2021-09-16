@@ -496,14 +496,12 @@ public class TacticalTicTacToe : NetworkBehaviour
 
 public static class CellStateExtensions
 {
-    public static string AsString(this CellState s)
+    public static string AsString(this CellState s) => s switch
     {
-        switch (s) {
-            case CellState.PlayerCross: return "Крестик";
-            case CellState.PlayerZero : return "Нолик"  ;
-            case CellState.Empty      : return "Зритель";
-        }
-    }
+        CellState.PlayerCross => "Крестик",
+        CellState.PlayerZero => "Нолик",
+        _ => "Зритель"
+    };
 }
 
 /// <summary>
