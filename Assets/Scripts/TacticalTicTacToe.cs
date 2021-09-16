@@ -164,7 +164,7 @@ public class TacticalTicTacToe : NetworkBehaviour
         currentNetPlayer.OnValueChanged += (CellState prev, CellState @new) =>
         {
             CurrentPlayer = @new;
-            textInfo.text = "Ходит: Игрок " + (CurrentPlayer == CellState.PlayerCross ? "X" : "O");
+            textInfo.text = "Ходит " + CurrentPlayer.AsString();
         };
         Instance = this;
         NetAuntif();
@@ -214,7 +214,7 @@ public class TacticalTicTacToe : NetworkBehaviour
         if (player)
         {
             player.MyRole = newRole;
-            RoleText.text = "Текущая роль: " + (player.MyRole == CellState.PlayerZero ? "Нолик" : "Зритель");
+            RoleText.text = "Текущая роль: " + player.MyRole.AsString();
             Debug.Log($"Моя роль: {player.MyRole}");
         }
     }
@@ -318,8 +318,7 @@ public class TacticalTicTacToe : NetworkBehaviour
     public void SendMessages(string message)
     {
         var player = localNetworkClient.PlayerObject.GetComponent<GamePlayerManager>();
-        string sender = player.MyRole == CellState.PlayerZero ? "Нолик" : player.MyRole == CellState.PlayerCross ? "Крестик" : "Зритель";
-        string editedMessage = sender + ": " + message;
+        string editedMessage = player.MyRole.AsString() + ": " + message;
 
         if (IsServer) CreateMessageObjClientRpc(editedMessage);
         else player.SendMessageServerRpc(editedMessage);
@@ -495,6 +494,18 @@ public class TacticalTicTacToe : NetworkBehaviour
     }
 }
 
+public static class CellStateExtensions
+{
+    public static string AsString(this CellState s)
+    {
+        switch (s) {
+            case CellState.PlayerCross: return "Крестик";
+            case CellState.PlayerZero : return "Нолик"  ;
+            case CellState.Empty      : return "Зритель";
+        }
+    }
+}
+
 /// <summary>
 /// PlayerCross и PlayerZero из CellState ДОЛЖНЫ БЫТЬ РАВНЫ PlayerCross и PlayerZero из GameState
 /// </summary>
@@ -502,7 +513,7 @@ public enum CellState
 {
     PlayerCross,
     PlayerZero,
-    Empty
+    Empty,
 }
 
 /// <summary>
