@@ -7,6 +7,7 @@ using MLAPI.Transports.UNET;
 using MLAPI.Messaging;
 using MLAPI.NetworkVariable;
 using UnityEngine.UI;
+using UnityEngine.Audio;
 
 public class MainMenu : MonoBehaviour
 {
@@ -54,7 +55,10 @@ public class MainMenu : MonoBehaviour
     public void OnEndEditMessage()
     {
         if (Input.GetKeyDown(KeyCode.Return))
+        {
             SendMessage();
+            inputField.ActivateInputField();
+        }
     }
 
     private void StopAllNetworks()

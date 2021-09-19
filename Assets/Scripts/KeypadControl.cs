@@ -12,16 +12,18 @@ public class KeypadControl : MonoBehaviour
 
     public GameObject MiniMenu;
     public GameObject ChatPanel;
+    public GameObject WinMenu;
 
     private void Update()
     {
         if (Input.GetKeyDown(MenuKey))
         {
-            MiniMenu.SetActive(!MiniMenu.activeSelf);
+            if (!ChatPanel.activeSelf && !WinMenu.activeSelf)
+                MiniMenu.SetActive(!MiniMenu.activeSelf);
         }
         if (Input.GetKeyDown(ChatKey))
         {
-            ChatPanel.SetActive(!ChatPanel.activeSelf);
+            ChatPanel.SetActive(true);
         }
 
 #if DEBUG

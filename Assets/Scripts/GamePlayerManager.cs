@@ -25,7 +25,7 @@ public class GamePlayerManager : NetworkBehaviour
     public void SwapRole()
     {
         MyRole = MyRole == CellState.PlayerCross ? CellState.PlayerZero : CellState.PlayerCross;
-        TacticalTicTacToe.Instance.RoleText.text = "Текущая роль: " + MyRole;
+        TacticalTicTacToe.Instance.RoleText.text = "Текущая роль: " + MyRole.AsString();
     }
 
     public void Awake()
