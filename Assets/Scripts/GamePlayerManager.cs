@@ -34,16 +34,6 @@ public class GamePlayerManager : NetworkBehaviour
     }
 #endif
 
-    public void MakeMove(LocalCell cell)
-    {
-        if (TacticalTicTacToe.Instance.CurrentPlayer != MyRole) return;
-
-        if (!IsServer)
-            MakeMoveServerRpc(cell);
-        else
-            TacticalTicTacToe.Instance.MakeMoveNet(cell);
-    }
-
     private ClientRpcParams GetClientRpcParams(ulong clientId) => new ClientRpcParams()
     {
         Send = new ClientRpcSendParams
@@ -52,16 +42,20 @@ public class GamePlayerManager : NetworkBehaviour
         }
     };
 
+    public void RequestCellUpdate(int cell)
+	{
+        RequestCellUpdateServerRpc(cell, MyRole);
+	}
+    [ServerRpc]
+    public void RequestCellUpdateServerRpc(int cell, CellState Role)
+	{
+        TacticalTicTacToe.Instance.UpdateCellClientRpc(cell, Role);
+    }
+
     [ServerRpc]
     public void SendMessageServerRpc(string message)
     {
         TacticalTicTacToe.Instance.CreateMessageObjClientRpc(message);
-    }
-
-    [ServerRpc]
-    private void MakeMoveServerRpc(LocalCell cell)
-    {
-        TacticalTicTacToe.Instance.MakeMoveNet(cell);
     }
 
     [ServerRpc]

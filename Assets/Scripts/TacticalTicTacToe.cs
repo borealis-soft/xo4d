@@ -16,106 +16,15 @@ using System.Net;
 
 public class TacticalTicTacToe : NetworkBehaviour
 {
-	public class LocalField : INetworkSerializable
-	{
-		public CellState[] Cells;
-		public GameState FieldState;
-		public int positionX;
-		public int positionY;
-		private int emptyCount;
-
-		public LocalField()
-		{
-			Cells = new CellState[9];
-			for (int i = 0; i < 9; i++)
-				Cells[i] = CellState.Empty;
-			FieldState = GameState.Playing;
-			positionX = 0;
-			positionY = 0;
-			emptyCount = 9;
-		}
-
-		public LocalField(int positionX, int positionY)
-		{
-			Cells = new CellState[9];
-			for (int i = 0; i < 9; i++)
-				Cells[i] = CellState.Empty;
-			emptyCount = 9;
-			FieldState = GameState.Playing;
-			this.positionX = positionX;
-			this.positionY = positionY;
-		}
-
-		public void MakeMove(int x, int y, CellState newState)
-		{
-			if (FieldState != GameState.Playing)
-			{
-				return;
-			}
-
-			Debug.Assert(x >= 0 && x < 3 && y >= 0 && y < 3);
-			Debug.Assert(newState != CellState.Empty);
-			Cells[y * 3 + x] = newState;
-			emptyCount--;
-
-			float angle = -90;
-			foreach (var indices in winningIndices)
-			{
-				if (indices[1] == 4) angle += 45;
-				if (Cells[indices[0]] == CellState.Empty) continue;
-				if (Cells[indices[0]] == Cells[indices[1]] && Cells[indices[1]] == Cells[indices[2]])
-				{
-					FieldState = (GameState)Cells[indices[0]];
-					TacticalTicTacToe inc = Instance;
-					var vec3rightUp = (Vector3.right + Vector3.up) * inc.localSpacing;
-					Vector3 globalLinePos = GetLinePos(indices[1]) * inc.localSpacing +
-						vec3rightUp + new Vector3(positionX, positionY, 0) * inc.fieldSpacing;
-					inc.InstantiateLineCLientRpc(globalLinePos, angle);
-					return;
-				}
-			}
-			if (emptyCount == 0)
-				FieldState = GameState.Draw;
-			else
-				FieldState = GameState.Playing;
-		}
-
-		public void NetworkSerialize(NetworkSerializer serializer)
-		{
-			int length = Cells.Length;
-			serializer.Serialize(ref length);
-			for (int i = 0; i < length; i++)
-				serializer.Serialize(ref Cells[i]);
-			serializer.Serialize(ref FieldState);
-			serializer.Serialize(ref positionX);
-			serializer.Serialize(ref positionY);
-			serializer.Serialize(ref emptyCount);
-		}
-
-		public override bool Equals(object obj)
-		{
-			return ReferenceEquals(this, obj);
-		}
-
-		public override int GetHashCode()
-		{
-			return base.GetHashCode();
-		}
-
-		public static bool operator ==(LocalField val1, LocalField val2)
-		{
-			if (val1 is null && val2 is null) return true;
-			if (val1 is null || val2 is null) return false;
-			return val1.positionX == val2.positionX && val1.positionY == val2.positionY;
-		}
-
-		public static bool operator !=(LocalField val1, LocalField val2) => !(val1 == val2);
-	}
-
 	public static TacticalTicTacToe Instance;
-	public static readonly List<LocalCell> AllCells = new List<LocalCell>(81);
-	public CellState CurrentPlayer { get; private set; } = CellState.PlayerCross;
-	public LocalField[] Fields { get; private set; } = new LocalField[9];
+
+	public CellState[] AllCells = new CellState[81];
+
+	private FieldState[] fieldStates = new FieldState[9];
+	private FieldState globalFieldState = FieldState.InProgress;
+	private int moveFieldIndex = -1;
+
+	public CellState CurrentPlayer { get; private set; } = CellState.Cross;
 	public Text winningText, RoleText;
 	public Text MessagePrefab;
 	public Transform MessagesParent;
@@ -124,7 +33,7 @@ public class TacticalTicTacToe : NetworkBehaviour
 	public AudioClip CrossDrawingSound;
 	public AudioClip ZeroDrawingSound;
 
-	[SerializeField] private Cell cellPrefab;
+	[SerializeField] private CellButton cellPrefab;
 	[SerializeField] private float localSpacing = 1.5f, fieldSpacing = 5f;
 	[SerializeField] private Transform CurrentMoveZone, nextMoveZone, highlight /*выделение*/;
 	[SerializeField] private GameObject crossPrefab, zeroPrefab, linePrefab;
@@ -132,37 +41,54 @@ public class TacticalTicTacToe : NetworkBehaviour
 	[SerializeField] private GameObject winGameMenu;
 	[SerializeField] private Transform GameFieldParent;
 
-	private static readonly int[][] winningIndices = new int[][] {
-		new int[] { 2, 4, 6 },// angle -45
+	class WinningCondition
+	{
+		public int[] Cells;
+		public float Angle;
+		public Vector3 Offset;
+	}
 
-		new int[] { 3, 4, 5 },// angle 0       //    7            up
-		new int[] { 0, 1, 2 },// angle 0       //  3 4 5    left zero right
-		new int[] { 6, 7, 8 },// angle 0       //    1           down
+	private static readonly WinningCondition[] winningConditions = new WinningCondition[] {
+		new WinningCondition() { Cells = new int[] { 0, 1, 2 }, Angle = 0, Offset = new Vector3(1, 0), },// angle 0       //  3 4 5    left zero right
+		new WinningCondition() { Cells = new int[] { 3, 4, 5 }, Angle = 0, Offset = new Vector3(1, 1), },// angle 0       //    7            up
+		new WinningCondition() { Cells = new int[] { 6, 7, 8 }, Angle = 0, Offset = new Vector3(1, 2), },// angle 0       //    1           down
 
-		new int[] { 0, 4, 8 },// angle 45  
+		new WinningCondition() { Cells = new int[] { 0, 3, 6 }, Angle = 90, Offset = new Vector3(0, 1), },// angle 90
+		new WinningCondition() { Cells = new int[] { 1, 4, 7 }, Angle = 90, Offset = new Vector3(1, 1), },// angle 90
+		new WinningCondition() { Cells = new int[] { 2, 5, 8 }, Angle = 90, Offset = new Vector3(2, 1), },// angle 90
 
-		new int[] { 1, 4, 7 },// angle 90  
-		new int[] { 0, 3, 6 },// angle 90  
-		new int[] { 2, 5, 8 } // angle 90  
+		new WinningCondition() { Cells = new int[] { 2, 4, 6 }, Angle = -45, Offset = new Vector3(1, 1), },// angle -45
+		new WinningCondition() { Cells = new int[] { 0, 4, 8 }, Angle = +45, Offset = new Vector3(1, 1), },// angle +45
 	};
 
-	private NetworkVariable<LocalField> currentNetField = new NetworkVariable<LocalField>(new NetworkVariableSettings()
-	{
-		ReadPermission = NetworkVariablePermission.Everyone,
-		WritePermission = NetworkVariablePermission.ServerOnly
-	});
 	private NetworkVariable<CellState> currentNetPlayer = new NetworkVariable<CellState>(new NetworkVariableSettings()
 	{
 		WritePermission = NetworkVariablePermission.ServerOnly,
 		ReadPermission = NetworkVariablePermission.Everyone
 	}, CellState.PlayerCross);
-	private LocalField currentField = null;
-	private Cell currentCell = null;
-	private GameState GlobalGameState = GameState.Playing;
+
 	private NetworkClient localNetworkClient;
 	private Func<LocalField, LocalField> GetNextField;
 	private Queue<Text> messageTexts = new Queue<Text>(20);
 	private int serverListenPort;
+	private Vector3 GetFieldPosition(int fieldX, int fieldY) => new Vector3(fieldX, fieldY, 0) * fieldSpacing;
+	private Vector3 GetFieldPosition(int cell) => GetFieldPosition(cell / 9 % 3, cell / 9 / 3);
+
+	private Vector3 GetCellPosition(int fieldX, int fieldY, int localX, int localY) =>
+		new Vector3(localX, localY, 0) * localSpacing + GetFieldPosition(fieldX, fieldY);
+	private Vector3 GetCellPosition(int cell)
+	{
+		int localIndex = cell % 9;
+		int fieldIndex = cell % 9;
+
+		int localY = localIndex / 3;
+		int localX = localIndex % 3;
+
+		int fieldY = fieldIndex / 3;
+		int fieldX = fieldIndex % 3;
+
+		return GetCellPosition(fieldX, fieldY, localX, localY);
+	}
 	public void Awake()
 	{
 		currentNetField.OnValueChanged += (LocalField prev, LocalField @new) => currentField = @new;
@@ -173,20 +99,15 @@ public class TacticalTicTacToe : NetworkBehaviour
 		};
 		Instance = this;
 		NetAuntif();
-		for (int fieldX = 0, i = 0; fieldX <= 2; ++fieldX, i++)
-			for (int fieldY = 0; fieldY <= 2; ++fieldY, i++)
-				for (int localX = 0; localX <= 2; ++localX, i++)
-					for (int localY = 0; localY <= 2; ++localY, i++)
+
+
+		for (int fieldY = 0, i = 0; fieldY <= 2; ++fieldY, i++)
+			for (int fieldX = 0; fieldX <= 2; ++fieldX, i++)
+				for (int localY = 0; localY <= 2; ++localY, i++)
+					for (int localX = 0; localX <= 2; ++localX, i++)
 					{
-						Vector3 localPos = new Vector3(localX, localY, 0) * localSpacing;
-						Vector3 fieldPos = new Vector3(fieldX, fieldY, 0) * fieldSpacing;
-						Cell cell = Instantiate(cellPrefab, localPos + fieldPos, Quaternion.identity, GameFieldParent);
-						cell.cell.localX = localX;
-						cell.cell.localY = localY;
-						cell.cell.fieldX = fieldX;
-						cell.cell.fieldY = fieldY;
-						cell.cell.pos = cell.transform.position;
-						AllCells.Add(cell.cell);
+						CellButton cell = Instantiate(cellPrefab, GetCellPosition(fieldX, fieldY, localX, localY), Quaternion.identity, GameFieldParent);
+						cell.index = i;
 					}
 
 #if DEBUG
@@ -196,6 +117,44 @@ public class TacticalTicTacToe : NetworkBehaviour
 		//	Debug.Log("Дебаг сервер запущен!");
 		//}
 #endif
+	}
+	private void UpdateCell(int cell, CellState state)
+	{
+		AllCells[cell] = state;
+
+		Instantiate(state == CellState.Cross ? crossPrefab : zeroPrefab, GetCellPosition(cell), Quaternion.identity);
+
+		int fieldIndex = cell / 9;
+		var localCells = AllCells.AsSpan(fieldIndex * 9, 9);
+		if (localCells.Count(c => c == CellState.Empty) == 0)
+		{
+			fieldStates[fieldIndex] = FieldState.Draw;
+			return;
+		}
+		foreach (var condition in winningConditions)
+		{
+			if (localCells[condition.Cells[0]] == CellState.Empty)
+				continue;
+
+			if (localCells[condition.Cells[0]] == localCells[condition.Cells[1]] &&
+				localCells[condition.Cells[1]] == localCells[condition.Cells[2]])
+			{
+				var vec3rightUp = (Vector3.right + Vector3.up) * localSpacing;
+
+				int fieldY = cell / 27;
+				int fieldX = cell / 9 % 3;
+
+				Instantiate(linePrefab, condition.Offset * localSpacing + new Vector3(fieldX, fieldY) * fieldSpacing, Quaternion.AngleAxis(condition.Angle, Vector3.forward));
+
+				fieldStates[fieldIndex] = localCells[condition.Cells[0]] switch
+				{
+					CellState.Cross => FieldState.CrossWin,
+					/* CellState.Zero */
+					_ => FieldState.ZeroWin
+				};
+				break;
+			}
+		}
 	}
 
 	public void Start()
@@ -228,54 +187,11 @@ public class TacticalTicTacToe : NetworkBehaviour
 	}
 
 	[ClientRpc]
-	public void SyncFieldsClientRpc(LocalField[] localFields, bool[] localCellsHasMoved, ClientRpcParams clientRpcParams = default)
+	public void SyncFieldsClientRpc(CellState[] cells, ClientRpcParams clientRpcParams = default)
 	{
-		Debug.Assert(!IsServer);
-		if (!IsServer)
-		{
-			for (int i = 0; i < localCellsHasMoved.Length; i++)
-				if (AllCells[i].hasMoved != localCellsHasMoved[i])
-					AllCells[i].hasMoved = localCellsHasMoved[i];
-
-			for (int i = 0; i < localFields.Length; i++)
-			//(var field in localFields)
-			{
-				for (int cellId = 0; cellId < localFields[i].Cells.Length; cellId++)
-				{
-					if (localFields[i].Cells[cellId] != CellState.Empty)
-					{
-						int localX = cellId % 3, localY = cellId / 3;
-						Vector3 localPos = new Vector3(localX, localY, 0) * localSpacing;
-						Vector3 fieldPos = new Vector3(localFields[i].positionX, localFields[i].positionY, 0) * fieldSpacing;
-						switch (localFields[i].Cells[cellId])
-						{
-							case CellState.PlayerCross:
-								Instantiate(crossPrefab, localPos + fieldPos, Quaternion.identity);
-								break;
-							case CellState.PlayerZero:
-								Instantiate(zeroPrefab, localPos + fieldPos, Quaternion.identity);
-								break;
-						}
-					}
-				}
-				if (localFields[i].FieldState != Fields[i].FieldState)
-					Fields[i].FieldState = localFields[i].FieldState;
-				float angle = -90;
-				foreach (var indices in winningIndices)
-				{
-					if (indices[1] == 4) angle += 45;
-					if (localFields[i].Cells[indices[0]] == CellState.Empty) continue;
-					if (localFields[i].Cells[indices[0]] == localFields[i].Cells[indices[1]] && localFields[i].Cells[indices[1]] == localFields[i].Cells[indices[2]])
-					{
-						TacticalTicTacToe inc = Instance;
-						var vec3rightUp = (Vector3.right + Vector3.up) * localSpacing;
-						Vector3 globalLinePos = GetLinePos(indices[1]) * inc.localSpacing + vec3rightUp +
-							new Vector3(localFields[i].positionX, localFields[i].positionY, 0) * inc.fieldSpacing;
-						Instantiate(linePrefab, globalLinePos, Quaternion.AngleAxis(angle, Vector3.forward));
-					}
-				}
-			}
-		}
+		for (int i = 0; i < cells.Length; i++)
+			if (cells[i] != CellState.Empty)
+				UpdateCell(i, cells[i]);
 	}
 
 	[ClientRpc]
@@ -345,7 +261,7 @@ public class TacticalTicTacToe : NetworkBehaviour
 
 	public void UpdateGameState()
 	{
-		foreach (var indices in winningIndices)
+		foreach (var indices in winningConditions)
 		{
 			if (Fields[indices[0]].FieldState == GameState.Playing || Fields[indices[0]].FieldState == GameState.Draw) continue;
 			if (Fields[indices[0]].FieldState == Fields[indices[1]].FieldState && Fields[indices[1]].FieldState == Fields[indices[2]].FieldState)
@@ -380,41 +296,23 @@ public class TacticalTicTacToe : NetworkBehaviour
 		return movedPlayer;
 	}
 
-	public bool IsHighlightable() => IsHighlightable(currentCell.cell);
-
-	public bool IsHighlightable(LocalCell cell)
+	public void OnCellHover(int cellIndex)
 	{
-		var targetField = Fields[cell.fieldY * 3 + cell.fieldX];
-		if (targetField.FieldState != GameState.Playing)
-			return false;
-		if (currentField == null)
-			return true;
-		return currentField == targetField;
+		highlight.position = GetCellPosition(cellIndex);
+		nextMoveZone.position = GetFieldPosition(cellIndex) + new Vector3(1, 1, 0) * localSpacing;
 	}
 
-	public void OnCellHover(Cell cell)
+	public void OnCellLeave(int index)
 	{
-		bool isViewer = localNetworkClient.PlayerObject.GetComponent<GamePlayerManager>().MyRole == CellState.Empty;
-		if (!isViewer && cell.cell.hasMoved) return;
-		if (isViewer || IsHighlightable(cell.cell))
-		{
-			var vec3rightUp = Vector3.right + Vector3.up;
-			nextMoveZone.position = new Vector3(cell.cell.localX, cell.cell.localY) * fieldSpacing + localSpacing * vec3rightUp;
-			highlight.position = cell.cell.pos;
-			currentCell = cell;
-		}
-	}
-
-	public void OnCellLeave()
-	{
-		if (currentCell == null) return;
 		nextMoveZone.position = Vector3.up * 1000;
 		highlight.position = Vector3.up * 1000;
-		currentCell = null;
 	}
 
-	public void MakeMoveNet(LocalCell cell)
+	public void MakeMoveNet(int cell, CellState role)
 	{
+		UpdateCell(cell, role);
+
+
 		CellState tempState = MakeMove(cell);
 		Debug.Assert(tempState != CellState.Empty);
 
@@ -422,14 +320,36 @@ public class TacticalTicTacToe : NetworkBehaviour
 		CheckWin();
 	}
 
-	public void OnCellClick()
+	private bool CanMoveInCell(int cell)
 	{
-		if (GlobalGameState == GameState.Playing && currentCell != null && IsHighlightable())
+		int field = cell / 9;
+
+		if (moveFieldIndex != -1 && field != moveFieldIndex)
+			return false;
+
+		if (fieldStates[field] != FieldState.InProgress)
+			return false;
+
+		return AllCells[cell] == CellState.Empty;
+	}
+
+	[ClientRpc]
+	public void UpdateCellClientRpc(int cell, CellState state)
+	{
+		UpdateCell(cell, state);
+	}
+
+	public void OnCellClick(int cell)
+	{
+		if (globalFieldState == FieldState.InProgress && CanMoveInCell(cell))
 		{
 			var player = localNetworkClient.PlayerObject.GetComponent<GamePlayerManager>();
-			if (player)
+			if (CurrentPlayer == player?.MyRole)
 			{
-				player.MakeMove(currentCell.cell);
+				if (IsServer)
+					UpdateCellClientRpc(cell, player.MyRole);
+				else
+					player.RequestCellUpdate(cell);
 			}
 		}
 	}
@@ -506,10 +426,10 @@ public class TacticalTicTacToe : NetworkBehaviour
 
 			switch (GlobalGameState)
 			{
-				case GameState.PlayerCrossWin:
+				case GameState.CrossWin:
 					winText = "Победил крестик!";
 					break;
-				case GameState.PlayerZeroWin:
+				case GameState.ZeroWin:
 					winText = "Победил нулик!";
 					break;
 				case GameState.Draw:
@@ -525,30 +445,23 @@ public static class CellStateExtensions
 {
 	public static string AsString(this CellState s) => s switch
 	{
-		CellState.PlayerCross => "Крестик",
-		CellState.PlayerZero => "Нолик",
+		CellState.Cross => "Крестик",
+		CellState.Zero => "Нолик",
 		_ => "Зритель"
 	};
 }
 
-/// <summary>
-/// PlayerCross и PlayerZero из CellState ДОЛЖНЫ БЫТЬ РАВНЫ PlayerCross и PlayerZero из GameState
-/// </summary>
-public enum CellState
+public enum CellState : byte
 {
-	PlayerCross,
-	PlayerZero,
+	Cross,
+	Zero,
 	Empty,
 }
 
-/// <summary>
-/// PlayerCross и PlayerZero из CellState ДОЛЖНЫ БЫТЬ РАВНЫ PlayerCross и PlayerZero из GameState
-/// </summary>
-public enum GameState
+public enum FieldState : byte
 {
-	PlayerCrossWin = CellState.PlayerCross,
-	PlayerZeroWin = CellState.PlayerZero,
-
+	InProgress,
 	Draw,
-	Playing,
+	CrossWin,
+	ZeroWin,
 }
