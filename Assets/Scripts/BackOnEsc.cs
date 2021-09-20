@@ -11,8 +11,7 @@ public class BackOnEsc : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             gameObject.SetActive(false);
-            if (PrevMenu)
-                PrevMenu.SetActive(true);
+            PrevMenu?.SetActive(true);
         }
     }
 }
