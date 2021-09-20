@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -19,7 +18,7 @@ namespace XO3D
 		[SerializeField] private GameObject xPrefab, oPrefab;
 		[SerializeField] private Transform highlight, centerCellParent;
 		[HideInInspector] public PlayerTeam currentTeam;
-		private Cell[] cells = new Cell[3*3*3];
+		private Cell[] cells = new Cell[3 * 3 * 3];
 		private int hideLayersCount;
 		public static Game Instance { get; private set; }
 
@@ -93,7 +92,7 @@ namespace XO3D
 							cell.transform.parent = centerCellParent;
 							ResetTransform(cell.transform);
 						}
-						
+
 						SetCell(x, y, z, cell);
 					}
 				}
@@ -134,10 +133,10 @@ namespace XO3D
 					}
 					Debug.Log($"Победил {state}!!!");
 					break;
-				} 
+				}
 				else if (distinctCount == 2)
 				{
-					if (distinct.Any(cell => cell.state == CellState.Empty)) 
+					if (distinct.Any(cell => cell.state == CellState.Empty))
 					{
 						winIsPossible = true;
 					}
@@ -238,41 +237,41 @@ namespace XO3D
 			switch (cameraDirection)
 			{
 				case CameraDirection.PositiveX:
-				{
-					hideEnd.x = hideLayersCount;
-					showStart.x = hideLayersCount;
-					break;
-				}
+					{
+						hideEnd.x = hideLayersCount;
+						showStart.x = hideLayersCount;
+						break;
+					}
 				case CameraDirection.PositiveY:
-				{
-					hideEnd.y = hideLayersCount;
-					showStart.y = hideLayersCount;
-					break;
-				}
+					{
+						hideEnd.y = hideLayersCount;
+						showStart.y = hideLayersCount;
+						break;
+					}
 				case CameraDirection.PositiveZ:
-				{
-					hideEnd.z = hideLayersCount;
-					showStart.z = hideLayersCount;
-					break;
-				}
+					{
+						hideEnd.z = hideLayersCount;
+						showStart.z = hideLayersCount;
+						break;
+					}
 				case CameraDirection.NegativeX:
-				{
-					showEnd.x = 3 - hideLayersCount;
-					hideStart.x = 3 - hideLayersCount;
-					break;
-				}
+					{
+						showEnd.x = 3 - hideLayersCount;
+						hideStart.x = 3 - hideLayersCount;
+						break;
+					}
 				case CameraDirection.NegativeY:
-				{
-					showEnd.y = 3 - hideLayersCount;
-					hideStart.y = 3 - hideLayersCount;
-					break;
-				}
+					{
+						showEnd.y = 3 - hideLayersCount;
+						hideStart.y = 3 - hideLayersCount;
+						break;
+					}
 				case CameraDirection.NegativeZ:
-				{
-					showEnd.z = 3 - hideLayersCount;
-					hideStart.z = 3 - hideLayersCount;
-					break;
-				}
+					{
+						showEnd.z = 3 - hideLayersCount;
+						hideStart.z = 3 - hideLayersCount;
+						break;
+					}
 			}
 
 			for (int x = hideStart.x; x < hideEnd.x; ++x)
