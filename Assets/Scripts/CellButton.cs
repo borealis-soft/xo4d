@@ -3,7 +3,6 @@ using UnityEngine.EventSystems;
 
 public class CellButton : MonoBehaviour
 {
-	[HideInInspector]
 	public int index;
 	private void OnMouseEnter()
 	{
