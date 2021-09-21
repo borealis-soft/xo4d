@@ -557,7 +557,7 @@ GameObject:
   - component: {fileID: 286029806}
   - component: {fileID: 286029805}
   m_Layer: 5
-  m_Name: Text info
+  m_Name: Current Role
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1674,7 +1674,7 @@ MonoBehaviour:
     MaxReceiveEventsPerTickRate: 500
     EventTickrate: 64
     ClientConnectionBufferTimeout: 10
-    ConnectionApproval: 1
+    ConnectionApproval: 0
     ConnectionData: 
     EnableTimeResync: 0
     TimeResyncInterval: 30
@@ -2156,26 +2156,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 127bce70c2d4a8846bfd0fedcfbcbd8c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  winningText: {fileID: 5990445}
-  RoleText: {fileID: 177825690}
-  MessagePrefab: {fileID: 4928162340690526174, guid: 097072469a07354458ee7d7bc62189a3, type: 3}
-  MessagesParent: {fileID: 412380775}
-  MessagesMaxCount: 30
   NewMessageSound: {fileID: 8300000, guid: 1d6a36a8c4be17a4fb73beb413ad382d, type: 3}
   CrossDrawingSound: {fileID: 8300000, guid: c2f93b735a38dd0489c2cbf614985c86, type: 3}
   ZeroDrawingSound: {fileID: 8300000, guid: a5c91e1d1b54e6945bf285aaaa06aba8, type: 3}
-  cellPrefab: {fileID: 707350114812258803, guid: b76ac486b9a0cee48870cd9c86ad6f1c, type: 3}
-  localSpacing: 1.2
-  fieldSpacing: 4.5
+  WinningText: {fileID: 5990445}
+  RoleText: {fileID: 177825690}
+  CurrentPlayerText: {fileID: 286029805}
+  MessagePrefab: {fileID: 4928162340690526174, guid: 097072469a07354458ee7d7bc62189a3, type: 3}
   CurrentMoveZone: {fileID: 1980771140}
   nextMoveZone: {fileID: 1433062404}
   highlight: {fileID: 1486446813}
+  CellsParent: {fileID: 4442508}
+  MessagesParent: {fileID: 412380775}
   crossPrefab: {fileID: 3992988956247235146, guid: ed313a826efa0d749a9502e592f9bea7, type: 3}
   zeroPrefab: {fileID: 3832666812292229330, guid: 57dc55bf595093349848332d7d589f6d, type: 3}
   linePrefab: {fileID: 3690747661403149393, guid: 18a8f47526f47eb4caaf9692eb86a7c3, type: 3}
-  textInfo: {fileID: 286029805}
   winGameMenu: {fileID: 1007773269}
-  GameFieldParent: {fileID: 4442508}
+  CellPrefab: {fileID: 707350114812258803, guid: b76ac486b9a0cee48870cd9c86ad6f1c, type: 3}
+  MessagesMaxCount: 30
+  LocalSpacing: 1.2
+  FieldSpacing: 4.2
 --- !u!4 &951837946
 Transform:
   m_ObjectHideFlags: 0

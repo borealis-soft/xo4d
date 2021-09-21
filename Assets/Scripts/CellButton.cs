@@ -1,15 +1,9 @@
-using MLAPI;
-using MLAPI.NetworkVariable;
-using MLAPI.Serialization;
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.SceneManagement;
 
 public class CellButton : MonoBehaviour
 {
+	[HideInInspector]
 	public int index;
 	private void OnMouseEnter()
 	{
@@ -19,7 +13,7 @@ public class CellButton : MonoBehaviour
 	private void OnMouseExit()
 	{
 		if (!EventSystem.current.IsPointerOverGameObject())
-			TacticalTicTacToe.Instance.OnCellLeave(index);
+			TacticalTicTacToe.Instance.OnCellLeave();
 	}
 	private void OnMouseUp()
 	{
