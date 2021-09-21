@@ -49,7 +49,7 @@ public class TacticalTicTacToe : NetworkBehaviour
 		WritePermission = NetworkVariablePermission.ServerOnly,
 		ReadPermission = NetworkVariablePermission.Everyone
 	}, CellState.Cross);
-	private NetworkVariable<int> moveFieldIndexNet = new NetworkVariable<int>(new NetworkVariableSettings()
+	private NetworkVariableInt moveFieldIndexNet = new NetworkVariableInt (new NetworkVariableSettings()
 	{
 		WritePermission = NetworkVariablePermission.ServerOnly,
 		ReadPermission = NetworkVariablePermission.Everyone
@@ -63,25 +63,25 @@ public class TacticalTicTacToe : NetworkBehaviour
 		Instance = this;
 		currentPlayerNet.OnValueChanged += (CellState prev, CellState @new) =>
 		{
-			CurrentPlayerText.text = "Ходит " + @new.AsString();
+			CurrentPlayerText.text = "Ходит: " + @new.AsString();
 		};
 		NetAuntif();
 
-		for (int fieldY = 0, i = 0; fieldY <= 2; ++fieldY, i++)
-			for (int fieldX = 0; fieldX <= 2; ++fieldX, i++)
-				for (int localY = 0; localY <= 2; ++localY, i++)
+		for (int fieldY = 0, i = 0; fieldY <= 2; ++fieldY)
+			for (int fieldX = 0; fieldX <= 2; ++fieldX)
+				for (int localY = 0; localY <= 2; ++localY)
 					for (int localX = 0; localX <= 2; ++localX, i++)
 					{
 						CellButton cell = Instantiate(CellPrefab, GetCellPosition(fieldX, fieldY, localX, localY), Quaternion.identity, CellsParent);
-						cell.index = i;
+						cell.Index = i;
 					}
 
 #if DEBUG
-		if (!NetworkManager.IsServer && !NetworkManager.IsClient)
-		{
-			NetworkManager.Singleton.StartHost();
-			Debug.Log("Дебаг сервер запущен!");
-		}
+		//if (!NetworkManager.IsServer && !NetworkManager.IsClient)
+		//{
+		//	NetworkManager.Singleton.StartHost();
+		//	Debug.Log("Дебаг сервер запущен!");
+		//}
 #endif
 	}
 
@@ -103,10 +103,10 @@ public class TacticalTicTacToe : NetworkBehaviour
 
 	private Vector3 GetCellPosition(int cell)
 	{
-		int localY = cell % 9 / 3;
+		int localY = cell % 9 / 3;// int cellId = cell % 9;
 		int localX = cell % 3;
 
-		int fieldY = cell / 27;
+		int fieldY = cell / 27;// int fiealdId = cell / 9;
 		int fieldX = cell / 9 % 3;
 
 		return GetCellPosition(fieldX, fieldY, localX, localY);
@@ -209,6 +209,7 @@ public class TacticalTicTacToe : NetworkBehaviour
 	[ClientRpc]
 	public void UpdateCellClientRpc(int cell, CellState state)
 	{
+		if (IsServer) return;
 		UpdateCell(cell, state);
 	}
 
@@ -246,6 +247,7 @@ public class TacticalTicTacToe : NetworkBehaviour
 
 	public void MakeMove(int cell, CellState Role)
 	{
+		UpdateCell(cell, Role);
 		UpdateCellClientRpc(cell, Role);
 		moveFieldIndexNet.Value = GetNextField(cell);
 		SetMoveZoneClientRpc(GetFieldPosition(cell % 3, cell % 9 / 3) + Offset);
@@ -257,7 +259,7 @@ public class TacticalTicTacToe : NetworkBehaviour
 	public void OnCellHover(int cellIndex)
 	{
 		highlight.position = GetCellPosition(cellIndex);
-		nextMoveZone.position = GetFieldPosition(cellIndex) + Offset;
+		nextMoveZone.position = GetFieldPosition(cellIndex % 3, cellIndex % 9 / 3) + Offset;
 	}
 
 	public void OnCellLeave()
@@ -308,8 +310,8 @@ public class TacticalTicTacToe : NetworkBehaviour
 		switch (MainMenu.GameMode)
 		{
 			case GameMode.HostGame:
-				serverListenPort = new System.Random().Next(1000, 20000);
-				transport.ServerListenPort = serverListenPort;
+				//serverListenPort = new System.Random().Next(1000, 20000);
+				//transport.ServerListenPort = serverListenPort;
 
 				NetworkManager.Singleton.ConnectionApprovalCallback += ApprovalCheck;
 				NetworkManager.Singleton.StartHost();
@@ -368,14 +370,14 @@ public static class CellStateExtensions
 	};
 }
 
-public enum CellState : byte
+public enum CellState
 {
+	Empty,
 	Cross,
 	Zero,
-	Empty,
 }
 
-public enum FieldState : byte
+public enum FieldState
 {
 	InProgress,
 	Draw,

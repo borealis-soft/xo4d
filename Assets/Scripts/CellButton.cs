@@ -4,11 +4,11 @@ using UnityEngine.EventSystems;
 public class CellButton : MonoBehaviour
 {
 	[HideInInspector]
-	public int index;
+	public int Index;
 	private void OnMouseEnter()
 	{
 		if (!EventSystem.current.IsPointerOverGameObject())
-			TacticalTicTacToe.Instance.OnCellHover(index);
+			TacticalTicTacToe.Instance.OnCellHover(Index);
 	}
 	private void OnMouseExit()
 	{
@@ -18,6 +18,6 @@ public class CellButton : MonoBehaviour
 	private void OnMouseUp()
 	{
 		if (!EventSystem.current.IsPointerOverGameObject())
-			TacticalTicTacToe.Instance.OnCellClick(index);
+			TacticalTicTacToe.Instance.OnCellClick(Index);
 	}
 }

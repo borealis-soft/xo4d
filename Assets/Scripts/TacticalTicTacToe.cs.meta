@@ -3,7 +3,24 @@ guid: 127bce70c2d4a8846bfd0fedcfbcbd8c
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - NewMessageSound: {instanceID: 0}
+  - CrossDrawingSound: {instanceID: 0}
+  - ZeroDrawingSound: {instanceID: 0}
+  - WinningText: {instanceID: 0}
+  - RoleText: {instanceID: 0}
+  - CurrentPlayerText: {instanceID: 0}
+  - MessagePrefab: {instanceID: 0}
+  - CurrentMoveZone: {instanceID: 0}
+  - nextMoveZone: {instanceID: 0}
+  - highlight: {instanceID: 0}
+  - CellsParent: {instanceID: 0}
+  - MessagesParent: {instanceID: 0}
+  - crossPrefab: {instanceID: 0}
+  - zeroPrefab: {instanceID: 0}
+  - linePrefab: {instanceID: 0}
+  - winGameMenu: {instanceID: 0}
+  - CellPrefab: {instanceID: 0}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 
