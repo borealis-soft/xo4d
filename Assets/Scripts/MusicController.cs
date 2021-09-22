@@ -43,7 +43,7 @@ public class MusicController : MonoBehaviour
 	private void ShuflMusicList()
 	{
 		var random = new System.Random();
-		musicList.Sort(delegate (AudioClip a, AudioClip b) { return random.Next(-1, 1); });
+		musicList.Sort(delegate (AudioClip a, AudioClip b) { return random.Next(-1, 2); });
 		curentMusicId = 0;
 	}
 

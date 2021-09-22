@@ -11,7 +11,6 @@ public class MainMenu : MonoBehaviour
 
 	public void LoadGame(int sceneID)
 	{
-		StopAllNetworks();
 		SceneManager.LoadScene(sceneID);
 	}
 
@@ -22,8 +21,9 @@ public class MainMenu : MonoBehaviour
 
 	public void ResetGame()
 	{
-		StopAllNetworks();
-		SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+		if (GameMode == GameMode.SingleGame)
+			SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+		else TacticalTicTacToe.Instance.ResetGame();
 	}
 
 	public void CreateServer()
@@ -55,10 +55,18 @@ public class MainMenu : MonoBehaviour
 		}
 	}
 
+	public void BackToMainMenu()
+	{
+		if (GameMode != GameMode.SingleGame)
+			StopAllNetworks();
+		LoadGame(0);
+	}
+
 	private void StopAllNetworks()
 	{
-		if (NetworkManager.Singleton.IsClient) NetworkManager.Singleton.StopClient();
-		if (NetworkManager.Singleton.IsServer) NetworkManager.Singleton.StopServer();
+		NetworkManager netManager = NetworkManager.Singleton;
+		if (netManager.IsHost) netManager.StopHost();
+		else netManager.StopClient();
 	}
 }
 

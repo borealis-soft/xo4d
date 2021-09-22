@@ -854,8 +854,8 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 456630749}
         m_TargetAssemblyTypeName: MainMenu, Assembly-CSharp
-        m_MethodName: LoadGame
-        m_Mode: 3
+        m_MethodName: BackToMainMenu
+        m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -2158,6 +2158,7 @@ MonoBehaviour:
   NewMessageSound: {fileID: 8300000, guid: 1d6a36a8c4be17a4fb73beb413ad382d, type: 3}
   CrossDrawingSound: {fileID: 8300000, guid: c2f93b735a38dd0489c2cbf614985c86, type: 3}
   ZeroDrawingSound: {fileID: 8300000, guid: a5c91e1d1b54e6945bf285aaaa06aba8, type: 3}
+  LineDriwingSound: {fileID: 8300000, guid: bfdcf21a181ceed4cb9b51d72fd34ef3, type: 3}
   WinningText: {fileID: 5990445}
   RoleText: {fileID: 177825690}
   CurrentPlayerText: {fileID: 286029805}

@@ -2,6 +2,7 @@
 using MLAPI.Connection;
 using MLAPI.Messaging;
 using MLAPI.NetworkVariable;
+using MLAPI.Transports.Tasks;
 using MLAPI.Transports.UNET;
 using System;
 using System.Collections;
@@ -22,7 +23,7 @@ public class TacticalTicTacToe : NetworkBehaviour
 
 	public static TacticalTicTacToe Instance;
 	public List<CellState> AllCells { get; private set; } = new List<CellState>(new CellState[81]);
-	public AudioClip NewMessageSound, CrossDrawingSound, ZeroDrawingSound;
+	public AudioClip NewMessageSound, CrossDrawingSound, ZeroDrawingSound, LineDriwingSound;
 	public Text WinningText, RoleText, CurrentPlayerText, MessagePrefab;
 	public Transform CurrentMoveZone, nextMoveZone, highlight, CellsParent, MessagesParent;
 	public GameObject crossPrefab, zeroPrefab, linePrefab, winGameMenu;
@@ -30,6 +31,7 @@ public class TacticalTicTacToe : NetworkBehaviour
 	public int MessagesMaxCount = 30;
 	public float LocalSpacing = 1.5f, FieldSpacing = 5f;
 
+	[HideInInspector] public NetworkClient localNetworkClient;
 	private static readonly WinningCondition[] winningConditions = new WinningCondition[]
 	{
 		new WinningCondition() { Cells = new int[] { 0, 1, 2 }, Angle = 0, Offset = new Vector3(1, 0), },
@@ -44,26 +46,34 @@ public class TacticalTicTacToe : NetworkBehaviour
 	private Vector3 Offset { get { return new Vector3(1, 1, 0) * LocalSpacing; } }
 	private List<FieldState> FieldStates = new List<FieldState>(new FieldState[9]);
 	private Queue<Text> messageTexts = new Queue<Text>(20);
+	private CellState currentPlayer = CellState.Cross;
 	private NetworkVariable<CellState> currentPlayerNet = new NetworkVariable<CellState>(new NetworkVariableSettings()
 	{
 		WritePermission = NetworkVariablePermission.ServerOnly,
 		ReadPermission = NetworkVariablePermission.Everyone
 	}, CellState.Cross);
-	private NetworkVariableInt moveFieldIndexNet = new NetworkVariableInt (new NetworkVariableSettings()
+	private int moveFieldId = -1;
+	private NetworkVariableInt moveFieldIdNet = new NetworkVariableInt(new NetworkVariableSettings()
 	{
 		WritePermission = NetworkVariablePermission.ServerOnly,
 		ReadPermission = NetworkVariablePermission.Everyone
 	}, -1);
-	private NetworkClient localNetworkClient;
 	private int serverListenPort;
 	private Func<int, int> GetNextField;
+	private Action<int> GameLogic;
+	private Action<string> WinAction;
 
 	public void Awake()
 	{
 		Instance = this;
 		currentPlayerNet.OnValueChanged += (CellState prev, CellState @new) =>
 		{
-			CurrentPlayerText.text = "Ходит: " + @new.AsString();
+			currentPlayer = @new;
+			CurrentPlayerTextUpdate(@new.AsString());
+		};
+		moveFieldIdNet.OnValueChanged += (int prev, int @new) =>
+		{
+			moveFieldId = @new;
 		};
 		NetAuntif();
 
@@ -115,16 +125,19 @@ public class TacticalTicTacToe : NetworkBehaviour
 	private Vector3 GetCellPosition(int fieldX, int fieldY, int localX, int localY) =>
 		new Vector3(localX, localY, 0) * LocalSpacing + GetFieldPosition(fieldX, fieldY);
 
-	private void UpdateCell(int cellId, CellState state)
+	private void CurrentPlayerTextUpdate(string newText) => CurrentPlayerText.text = $"Ходит: {newText}";
+
+	private void UpdateCell(int cellId, CellState state, bool playSound = true)
 	{
 		AllCells[cellId] = state;
 		Instantiate(state == CellState.Cross ? crossPrefab : zeroPrefab, GetCellPosition(cellId), Quaternion.identity);
-		SoundController.Instance.PlaySound(state == CellState.Cross ? CrossDrawingSound : ZeroDrawingSound);
+		if (playSound)
+			SoundController.Instance.PlaySound(state == CellState.Cross ? CrossDrawingSound : ZeroDrawingSound);
 
-		UpdateField(cellId);
+		UpdateField(cellId, playSound);
 	}
 
-	private void UpdateField(int cellId)
+	private void UpdateField(int cellId, bool playSound = true)
 	{
 		int fieldIndex = cellId / 9;
 		var mineCells = AllCells.GetRange(fieldIndex * 9, 9);
@@ -147,7 +160,8 @@ public class TacticalTicTacToe : NetworkBehaviour
 				int fieldX = cellId / 9 % 3;
 
 				Instantiate(linePrefab, condition.Offset * LocalSpacing + new Vector3(fieldX, fieldY) * FieldSpacing, Quaternion.AngleAxis(condition.Angle, Vector3.forward));
-				SoundController.Instance.PlaySound(ZeroDrawingSound);// Найти звук для черты
+				if (playSound)
+					SoundController.Instance.PlaySound(LineDriwingSound);
 
 				FieldStates[fieldIndex] = mineCells[condition.Cells[0]] switch
 				{
@@ -167,29 +181,33 @@ public class TacticalTicTacToe : NetworkBehaviour
 		{
 			player.MyRole = newRole;
 			RoleText.text = "Текущая роль: " + player.MyRole.AsString();
-			Debug.Log($"Моя роль: {player.MyRole}");
 		}
 	}
 
 	[ClientRpc]
-	public void SyncFieldsClientRpc(CellState[] cells, ClientRpcParams clientRpcParams = default)
+	public void SyncFieldsClientRpc(CellState[] cells, Vector3 currentMoveZonePos, ClientRpcParams clientRpcParams = default)
 	{
 		for (int i = 0; i < cells.Length; i++)
 			if (cells[i] != CellState.Empty)
-				UpdateCell(i, cells[i]);
+				UpdateCell(i, cells[i], false);
+		CurrentMoveZone.position = currentMoveZonePos;
 	}
 
 	[ClientRpc]
-	public void SetMoveZoneClientRpc(Vector3 newPos)
+	public void SetMoveZoneClientRpc(Vector3 newPos) => SetMoveZone(newPos);
+
+	public void SetMoveZone(Vector3 newPos)
 	{
-		if (moveFieldIndexNet.Value == -1)
+		if (moveFieldId == -1)
 			CurrentMoveZone.position = Vector3.up * 1000;
 		else
 			CurrentMoveZone.position = newPos;
 	}
 
 	[ClientRpc]
-	private void ActivatedWinMenuClientRpc(string winText)
+	private void ActivatedWinMenuClientRpc(string winText) => ActivatedWinMenu(winText);
+
+	private void ActivatedWinMenu(string winText)
 	{
 		WinningText.text = winText;
 		winGameMenu.SetActive(true);
@@ -222,15 +240,14 @@ public class TacticalTicTacToe : NetworkBehaviour
 		else player.SendMessageServerRpc(editedMessage);
 	}
 
-	public void SwapPlayer()
-	{
-		currentPlayerNet.Value = currentPlayerNet.Value == CellState.Cross ? CellState.Zero : CellState.Cross;
-	}
+	public void SwapPlayerNet() => currentPlayerNet.Value = GetSwapedPlayer();
+
+	public CellState GetSwapedPlayer() => currentPlayer == CellState.Cross ? CellState.Zero : CellState.Cross;
 
 	public void CheckWin()
 	{
 		if (FieldStates.Count(field => field == FieldState.InProgress) == 0)
-			ActivatedWinMenuClientRpc(FieldState.Draw.AsString());
+			WinAction(FieldState.Draw.AsString());
 		else
 			foreach (var indices in winningConditions)
 			{
@@ -239,20 +256,30 @@ public class TacticalTicTacToe : NetworkBehaviour
 				if (FieldStates[id0] == FieldState.InProgress || FieldStates[id0] == FieldState.Draw) continue;
 				if (FieldStates[id0] == FieldStates[id1] && FieldStates[id1] == FieldStates[id2])
 				{
-					ActivatedWinMenuClientRpc(FieldStates[id0].AsString());
+					WinAction(FieldStates[id0].AsString());
 					break;
 				}
 			}
 	}
 
-	public void MakeMove(int cell, CellState Role)
+	public void MakeMoveNet(int cell, CellState Role)
 	{
 		UpdateCell(cell, Role);
 		UpdateCellClientRpc(cell, Role);
-		moveFieldIndexNet.Value = GetNextField(cell);
+		moveFieldIdNet.Value = GetNextField(cell);
 		SetMoveZoneClientRpc(GetFieldPosition(cell % 3, cell % 9 / 3) + Offset);
 
-		SwapPlayer();
+		SwapPlayerNet();
+		CheckWin();
+	}
+
+	public void MakeMove(int cell)
+	{
+		UpdateCell(cell, currentPlayer);
+		moveFieldId = GetNextField(cell);
+		SetMoveZone(GetFieldPosition(cell % 3, cell % 9 / 3) + Offset);
+		currentPlayer = GetSwapedPlayer();
+		CurrentPlayerTextUpdate(currentPlayer.AsString());
 		CheckWin();
 	}
 
@@ -272,14 +299,17 @@ public class TacticalTicTacToe : NetworkBehaviour
 	{
 		if (CanMoveInCell(cell))
 		{
-			var player = localNetworkClient.PlayerObject.GetComponent<GamePlayerManager>();
-			if (player && player.MyRole == currentPlayerNet.Value)
-			{
-				if (IsServer)
-					MakeMove(cell, player.MyRole);
-				else
-					player.RequestMove(cell);
-			}
+			GameLogic(cell);
+		}
+	}
+
+	public void ResetGame()
+	{
+		throw new NotImplementedException("В разработке!");
+		var player = localNetworkClient.PlayerObject.GetComponent<GamePlayerManager>();
+		if (player && player.MyRole == currentPlayer)
+		{
+
 		}
 	}
 
@@ -287,7 +317,7 @@ public class TacticalTicTacToe : NetworkBehaviour
 	{
 		int field = cell / 9;
 
-		if (moveFieldIndexNet.Value != -1 && field != moveFieldIndexNet.Value)
+		if (moveFieldId != -1 && field != moveFieldId)
 			return false;
 
 		if (FieldStates[field] != FieldState.InProgress)
@@ -305,20 +335,39 @@ public class TacticalTicTacToe : NetworkBehaviour
 
 	private void NetAuntif()
 	{
-		if (MainMenu.GameMode == GameMode.SingleGame) return;
-		var transport = NetworkManager.Singleton.GetComponent<UNetTransport>();
+		if (MainMenu.GameMode == GameMode.SingleGame)
+		{
+			RoleText.gameObject.SetActive(false);
+			GameLogic = cell => MakeMove(cell);
+			WinAction = ActivatedWinMenu;
+			return;
+		}
+
+		WinAction = ActivatedWinMenuClientRpc;
+		GameLogic = cell =>
+		{
+			var player = localNetworkClient.PlayerObject.GetComponent<GamePlayerManager>();
+			if (player && player.MyRole == currentPlayer)
+			{
+				if (IsServer)
+					MakeMoveNet(cell, player.MyRole);
+				else
+					player.RequestMove(cell);
+			}
+		};
 		switch (MainMenu.GameMode)
 		{
 			case GameMode.HostGame:
-				//serverListenPort = new System.Random().Next(1000, 20000);
-				//transport.ServerListenPort = serverListenPort;
+				serverListenPort = new System.Random().Next(1000, 20000);
+				NetworkManager.Singleton.GetComponent<UNetTransport>().ServerListenPort = serverListenPort;
 
 				NetworkManager.Singleton.ConnectionApprovalCallback += ApprovalCheck;
+				//NetworkManager.Singleton.OnClientConnectedCallback 
 				NetworkManager.Singleton.StartHost();
 				GUIUtility.systemCopyBuffer = serverListenPort.ToString();
-				Debug.Log($"Server created! Port {transport.ServerListenPort}");
 				break;
 			case GameMode.ClientGame:
+				var transport = NetworkManager.Singleton.GetComponent<UNetTransport>();
 				if (MainMenu.AddrText != string.Empty)
 				{
 					string[] addr = MainMenu.AddrText.Split(':');
@@ -326,14 +375,27 @@ public class TacticalTicTacToe : NetworkBehaviour
 					transport.ConnectPort = int.Parse(addr[1]);
 				}
 
-				var res = NetworkManager.Singleton.StartClient();
-				if (!res.IsDone)
-				{
-					Debug.Log("Error connection!");
-					NetworkManager.Singleton.StopClient();
-					SceneManager.LoadScene(0);
-				}
+				StartCoroutine(WaitForConnectCorutine(NetworkManager.Singleton.StartClient()));
 				break;
+		}
+	}
+
+	private IEnumerator WaitForConnectCorutine(SocketTasks result)
+	{
+		int failCount = 20;
+		while (failCount > 0)
+		{
+			yield return new WaitForSeconds(0.2f);
+			if (result.IsDone) break;
+			NetworkManager.Singleton.StopClient();
+			result = NetworkManager.Singleton.StartClient();
+			failCount--;
+		}
+		if (!result.IsDone)
+		{
+			Debug.Log("Error connection!");
+			NetworkManager.Singleton.StopClient();
+			SceneManager.LoadScene(0);
 		}
 	}
 

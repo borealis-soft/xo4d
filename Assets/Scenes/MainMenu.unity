@@ -3900,7 +3900,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d755dc325caaf0749af781261853fa7b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DontDestroy: 0
+  DontDestroy: 1
 --- !u!82 &946854870
 AudioSource:
   m_ObjectHideFlags: 0

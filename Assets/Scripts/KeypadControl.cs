@@ -19,7 +19,7 @@ public class KeypadControl : MonoBehaviour
 			if (!ChatPanel.activeSelf && !WinMenu.activeSelf)
 				MiniMenu.SetActive(!MiniMenu.activeSelf);
 		}
-		if (Input.GetKeyDown(ChatKey))
+		if (Input.GetKeyDown(ChatKey) && MainMenu.GameMode != GameMode.SingleGame)
 		{
 			ChatPanel.SetActive(true);
 		}

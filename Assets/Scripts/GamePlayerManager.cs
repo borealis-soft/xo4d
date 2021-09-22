@@ -47,7 +47,7 @@ public class GamePlayerManager : NetworkBehaviour
 	[ServerRpc]
 	public void RequestMoveServerRpc(int cell, CellState Role)
 	{
-		TacticalTicTacToe.Instance.MakeMove(cell, Role);
+		TacticalTicTacToe.Instance.MakeMoveNet(cell, Role);
 	}
 
 	[ServerRpc]
@@ -59,7 +59,7 @@ public class GamePlayerManager : NetworkBehaviour
 	[ServerRpc]
 	private void RequestRoleServerRpc(ulong clientId)
 	{
-		CellState newRole = NetworkManager.Singleton.ConnectedClientsList.Count <= 2 ? CellState.Zero : CellState.Empty;
+		CellState newRole = NetworkManager.Singleton.ConnectedClientsList.Count == 2 ? CellState.Zero : CellState.Empty;
 		ClientRpcParams clientRpcParams = GetClientRpcParams(clientId);
 		TacticalTicTacToe.Instance.GetRoleClientRpc(newRole, clientRpcParams);
 	}
@@ -68,6 +68,7 @@ public class GamePlayerManager : NetworkBehaviour
 	private void RequestDataServerRpc(ulong clientId)
 	{
 		ClientRpcParams clientRpcParams = GetClientRpcParams(clientId);
-		TacticalTicTacToe.Instance.SyncFieldsClientRpc(TacticalTicTacToe.Instance.AllCells.ToArray(), clientRpcParams);
+		var inc = TacticalTicTacToe.Instance;
+		TacticalTicTacToe.Instance.SyncFieldsClientRpc(inc.AllCells.ToArray(), inc.CurrentMoveZone.position, clientRpcParams);
 	}
 }
